@@ -19,6 +19,8 @@ function CSVUpload({ title, description, tableName, icon }: CSVUploadProps) {
   const [result, setResult] = useState<string>('')
   const [debugging, setDebugging] = useState(false)
   const [debugResult, setDebugResult] = useState<string>('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState<string>('')
 
   const handleUpload = async () => {
     if (!file) return
@@ -161,6 +163,73 @@ ${debug.processing_steps.map((step: string) => `・${step}`).join('\n')}`)
     }
   }
 
+  const handleAnalyzeDuplicates = async () => {
+    if (!file) return
+
+    setAnalyzing(true)
+    setAnalysisResult('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      setAnalysisResult(`🔍 重複分析中...
+・ファイル名: ${file.name}
+・サイズ: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
+
+      const response = await fetch('/api/analyze-duplicates', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const analysis = result.analysis
+        setAnalysisResult(`📊 重複分析結果:
+
+📈 基本統計:
+・総レコード数: ${analysis.total_rows.toLocaleString()}件
+・ユニークメール数: ${analysis.unique_emails.toLocaleString()}件
+・重複メール数: ${analysis.duplicate_emails.toLocaleString()}種類
+・空のメール: ${analysis.empty_emails.toLocaleString()}件
+
+🔴 重複による処理失敗予想:
+・重複メールレコード: ${analysis.duplicate_email_records.toLocaleString()}件
+・重複ユーザーID: ${analysis.duplicate_user_ids.toLocaleString()}件
+
+💾 データベースとの衝突:
+・既存メール衝突(サンプル100件中): ${analysis.existing_conflicts.email_conflicts}件
+・既存ユーザーID衝突(サンプル100件中): ${analysis.existing_conflicts.user_id_conflicts}件
+・現在のDB登録数: ${analysis.database_status.existing_users.toLocaleString()}件
+
+🔍 重複メールの例 (最初の5種類):
+${analysis.sample_duplicates.map((dup: any, idx: number) =>
+  `${idx + 1}. ${dup.email} - ${dup.count}重複 (ユーザー: ${dup.user_ids.join(', ')})`
+).join('\n')}
+
+${analysis.empty_email_user_ids.length > 0 ? `
+❗ 空メールのユーザーID例:
+${analysis.empty_email_user_ids.slice(0, 5).join(', ')}
+` : ''}
+
+💡 対処法:
+1. 重複メールは最初のレコードのみ処理される
+2. 後続の重複は自動的にスキップされる
+3. 空メールのレコードも処理対象外
+4. ${17311 + analysis.duplicate_email_records}件の想定処理数と一致`)
+
+      } else {
+        setAnalysisResult(`❌ 分析エラー: ${result.error}`)
+      }
+
+    } catch (error) {
+      setAnalysisResult(`❌ 分析処理エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center mb-4">
@@ -179,11 +248,11 @@ ${debug.processing_steps.map((step: string) => `・${step}`).join('\n')}`)
           />
         </div>
 
-        <div className="flex space-x-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <button
             onClick={handleUpload}
             disabled={!file || uploading}
-            className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+            className="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {uploading ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -196,7 +265,7 @@ ${debug.processing_steps.map((step: string) => `・${step}`).join('\n')}`)
           <button
             onClick={handleDebugCSV}
             disabled={!file || debugging}
-            className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+            className="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {debugging ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -205,6 +274,21 @@ ${debug.processing_steps.map((step: string) => `・${step}`).join('\n')}`)
             )}
             {debugging ? '解析中...' : 'CSVデバッグ'}
           </button>
+
+          {tableName === 'users' && (
+            <button
+              onClick={handleAnalyzeDuplicates}
+              disabled={!file || analyzing}
+              className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              {analyzing ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              ) : (
+                <TrendingUp className="h-4 w-4 mr-2" />
+              )}
+              {analyzing ? '分析中...' : '重複分析'}
+            </button>
+          )}
         </div>
 
         {result && (
@@ -217,6 +301,13 @@ ${debug.processing_steps.map((step: string) => `・${step}`).join('\n')}`)
           <div className="p-3 rounded-md bg-blue-50 text-blue-800">
             <h4 className="font-semibold mb-2">🔍 CSV解析結果</h4>
             <pre className="whitespace-pre-wrap text-xs">{debugResult}</pre>
+          </div>
+        )}
+
+        {analysisResult && (
+          <div className="p-3 rounded-md bg-purple-50 text-purple-800">
+            <h4 className="font-semibold mb-2">📊 重複分析結果</h4>
+            <pre className="whitespace-pre-wrap text-xs">{analysisResult}</pre>
           </div>
         )}
       </div>

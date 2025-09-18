@@ -40,9 +40,24 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    // Temporarily bypass access checks for testing
-    // TODO: Implement proper access control after authentication is working
-    console.log('User authenticated:', user.email, user.id)
+    // Get user data from our users table using Auth email
+    const { data: userData } = await supabase
+      .from('users')
+      .select('system_access_flg, admin_flg, user_id')
+      .eq('mail_address', user.email)
+      .single()
+
+    // Check system access flag for all protected routes
+    if (!userData?.system_access_flg) {
+      return NextResponse.redirect(new URL('/access-denied', request.url))
+    }
+
+    // Check admin access for admin routes only
+    if (request.nextUrl.pathname.startsWith('/admin')) {
+      if (!userData?.admin_flg) {
+        return NextResponse.redirect(new URL('/unauthorized', request.url))
+      }
+    }
   }
 
   return supabaseResponse

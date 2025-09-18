@@ -31,14 +31,6 @@ export async function POST(request: NextRequest) {
     // Create auth users in batches to avoid rate limits
     for (const user of users) {
       try {
-        // Check if auth user already exists
-        const { data: existingAuthUser } = await supabase.auth.admin.getUserByEmail(user.mail_address)
-
-        if (existingAuthUser.user) {
-          // Auth user already exists, skip
-          continue
-        }
-
         // Create new auth user with password from CSV
         // If no password in CSV, use user_id as default password
         const userPassword = user.password || user.user_id
@@ -54,6 +46,11 @@ export async function POST(request: NextRequest) {
         })
 
         if (authError) {
+          // Skip if user already exists
+          if (authError.message.includes('already registered') || authError.message.includes('email already exists')) {
+            console.log(`User ${user.user_id} already exists, skipping...`)
+            continue
+          }
           errors.push(`${user.user_id}: ${authError.message}`)
         } else {
           // Update users table with auth UUID

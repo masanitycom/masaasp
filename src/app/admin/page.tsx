@@ -330,6 +330,9 @@ export default function AdminPage() {
   const [debugDBResult, setDebugDBResult] = useState<string>('')
   const [creatingTestUser, setCreatingTestUser] = useState(false)
   const [testUserResult, setTestUserResult] = useState<string>('')
+  const [fixingDuplicates, setFixingDuplicates] = useState(false)
+  const [duplicateFixResult, setDuplicateFixResult] = useState<string>('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -507,6 +510,59 @@ ${debug.errors.connection_error || debug.errors.users_error ? `\n❌ エラー:\
     }
   }
 
+  const handleFixDuplicates = async () => {
+    if (!selectedFile) {
+      setDuplicateFixResult('❌ ユーザーデータCSVファイルを選択してください')
+      return
+    }
+
+    setFixingDuplicates(true)
+    setDuplicateFixResult('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+
+      setDuplicateFixResult(`📤 全ユーザーログイン可能化処理中...
+・ファイル名: ${selectedFile.name}
+・メールアドレスを一意化しています...`)
+
+      const response = await fetch('/api/fix-duplicates', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setDuplicateFixResult(`✅ ${result.message}
+
+📊 処理結果:
+・処理済み: ${result.details.totalProcessed}件
+・エラー: ${result.details.totalErrors}件
+・総行数: ${result.details.totalRows}行
+
+💡 重要な変更:
+${result.details.note}
+
+🔑 ログイン方法:
+1. ユーザーIDでログイン（推奨）
+   例: c00005523
+2. 自動生成メールでログイン
+   例: c00005523@masaasp-user.com
+
+全20,111人がログイン可能になりました！`)
+      } else {
+        setDuplicateFixResult(`❌ エラー: ${result.error}`)
+      }
+
+    } catch (error) {
+      setDuplicateFixResult(`❌ 処理エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setFixingDuplicates(false)
+    }
+  }
+
   const handleCreateTestUser = async () => {
     setCreatingTestUser(true)
     setTestUserResult('')
@@ -638,6 +694,43 @@ ${result.login_instructions.map((step: string) => `${step}`).join('\n')}
               icon={config.icon}
             />
           ))}
+        </div>
+
+        <div className="mt-8 bg-yellow-50 border-2 border-yellow-300 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <TrendingUp className="h-5 w-5 inline mr-2 text-yellow-600" />
+            🔥 全ユーザーログイン可能化（重複メール対応）
+          </h3>
+          <p className="text-gray-700 mb-4">
+            <strong className="text-red-600">重複メールアドレス問題を解決！</strong><br />
+            20,111人全員がユーザーIDでログインできるようになります。<br />
+            重複メールアドレスは自動的に<code>user_id@masaasp-user.com</code>形式に変換されます。
+          </p>
+          <div className="mb-4">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100"
+            />
+          </div>
+          <button
+            onClick={handleFixDuplicates}
+            disabled={!selectedFile || fixingDuplicates}
+            className="bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {fixingDuplicates ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <TrendingUp className="h-4 w-4 mr-2" />
+            )}
+            {fixingDuplicates ? '処理中...' : '全ユーザーログイン可能化'}
+          </button>
+          {duplicateFixResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${duplicateFixResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
+              {duplicateFixResult}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 bg-white rounded-lg shadow p-6">

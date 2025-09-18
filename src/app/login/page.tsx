@@ -35,28 +35,8 @@ export default function LoginPage() {
       let userEmail = ''
       let userData = null
 
-      if (isEmail) {
-        // Login with email address
-        userEmail = loginId
-
-        // Check if user exists in our database with this email
-        const { data: userRecords, error: userError } = await supabase
-          .from('users')
-          .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
-          .eq('mail_address', loginId)
-
-        const userRecord = userRecords?.[0] // Take first match
-
-        if (userError || !userRecord) {
-          setError('メールアドレスまたはパスワードが正しくありません')
-          setDebugInfo(`デバッグ情報: メールアドレス "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
-          setLoading(false)
-          return
-        }
-
-        userData = userRecord
-      } else {
-        // Login with user_id
+      if (!isEmail) {
+        // PRIORITY: Login with user_id first (always unique)
         const { data: userRecords, error: userError } = await supabase
           .from('users')
           .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
@@ -67,6 +47,40 @@ export default function LoginPage() {
         if (userError || !userRecord) {
           setError('ユーザーIDまたはパスワードが正しくありません')
           setDebugInfo(`デバッグ情報: ユーザーID "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
+          setLoading(false)
+          return
+        }
+
+        userData = userRecord
+        userEmail = userRecord.mail_address
+      } else {
+        // Login with email address - check both mail_address and original_email
+        // First try mail_address
+        let { data: userRecords, error: userError } = await supabase
+          .from('users')
+          .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
+          .eq('mail_address', loginId)
+
+        let userRecord = userRecords?.[0]
+
+        // If not found, try checking if this is a user_id based email
+        if (!userRecord) {
+          // Extract user_id from email like "c00005523@masaasp-user.com"
+          const emailMatch = loginId.match(/^([^@]+)@masaasp-user\.com$/)
+          if (emailMatch) {
+            const userId = emailMatch[1]
+            const { data: userByIdRecords } = await supabase
+              .from('users')
+              .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
+              .eq('user_id', userId)
+
+            userRecord = userByIdRecords?.[0]
+          }
+        }
+
+        if (userError || !userRecord) {
+          setError('メールアドレスまたはパスワードが正しくありません')
+          setDebugInfo(`デバッグ情報: メールアドレス "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
           setLoading(false)
           return
         }

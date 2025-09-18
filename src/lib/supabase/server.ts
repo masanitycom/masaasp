@@ -64,3 +64,25 @@ export async function createServerActionClient() {
     }
   )
 }
+
+// Alias for API routes
+export function createClient() {
+  if (!hasValidSupabaseConfig()) {
+    console.warn('Using placeholder Supabase configuration. Please set environment variables.')
+  }
+
+  return createServerClient<Database>(
+    config.supabase.url,
+    config.supabase.serviceRoleKey || config.supabase.anonKey, // Use service key for API routes
+    {
+      cookies: {
+        getAll() {
+          return []
+        },
+        setAll() {
+          // No-op for API routes
+        },
+      },
+    }
+  )
+}

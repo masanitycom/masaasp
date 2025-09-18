@@ -16,12 +16,14 @@ export default function LoginPage() {
   const supabase = createClient()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string>('')
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>()
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null)
     setLoading(true)
+    setDebugInfo('')
 
     try {
       const loginId = data.loginId.trim()
@@ -46,6 +48,7 @@ export default function LoginPage() {
 
         if (userError || !userRecord) {
           setError('メールアドレスまたはパスワードが正しくありません')
+          setDebugInfo(`デバッグ情報: メールアドレス "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
           setLoading(false)
           return
         }
@@ -61,6 +64,7 @@ export default function LoginPage() {
 
         if (userError || !userRecord) {
           setError('ユーザーIDまたはパスワードが正しくありません')
+          setDebugInfo(`デバッグ情報: ユーザーID "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
           setLoading(false)
           return
         }
@@ -85,11 +89,14 @@ export default function LoginPage() {
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
           setError('パスワードが正しくありません')
+          setDebugInfo(`デバッグ情報: 認証失敗 - ユーザー: ${userData.user_id} (${userEmail}) - 認証エラー: ${authError.message}`)
         } else {
           setError('認証エラー: ' + authError.message)
+          setDebugInfo(`デバッグ情報: 認証エラー詳細 - ${authError.message}`)
         }
       } else {
         // Login successful
+        setDebugInfo(`デバッグ情報: ログイン成功 - ユーザー: ${userData.user_id} (${userEmail})`)
         router.push('/dashboard')
       }
     } catch (err) {
@@ -162,6 +169,12 @@ export default function LoginPage() {
             {error && (
               <div className="rounded-md bg-red-50 p-4">
                 <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
+            {debugInfo && (
+              <div className="rounded-md bg-blue-50 p-4">
+                <p className="text-xs text-blue-800 font-mono whitespace-pre-wrap">{debugInfo}</p>
               </div>
             )}
 

@@ -11,13 +11,25 @@ interface RewardWithDetails extends CalculatedRewards {
   referral_user_name?: string
 }
 
+interface PropertyReward {
+  fund_no: number
+  fund_name: string
+  fund_type: string
+  total_rewards: number
+  total_paid: number
+  total_unpaid: number
+  reward_count: number
+  rewards: RewardWithDetails[]
+}
+
 export default function RewardsPage() {
   const router = useRouter()
   const supabase = createClient()
   const [user, setUser] = useState<User | null>(null)
-  const [rewards, setRewards] = useState<RewardWithDetails[]>([])
+  const [propertyRewards, setPropertyRewards] = useState<PropertyReward[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
+  const [selectedProperty, setSelectedProperty] = useState<number | null>(null)
   const [totalStats, setTotalStats] = useState({
     totalEarned: 0,
     totalPaid: 0,
@@ -85,7 +97,40 @@ export default function RewardsPage() {
             })
           )
 
-          setRewards(rewardsWithNames)
+          // Group rewards by property/fund
+          const propertyGroups = rewardsWithNames.reduce((groups, reward) => {
+            const fundNo = reward.fund_no || 0
+            const fundName = reward.investment?.fund_name || 'Unknown Fund'
+            const fundType = reward.investment?.fund_type || 'Unknown Type'
+
+            if (!groups[fundNo]) {
+              groups[fundNo] = {
+                fund_no: fundNo,
+                fund_name: fundName,
+                fund_type: fundType,
+                total_rewards: 0,
+                total_paid: 0,
+                total_unpaid: 0,
+                reward_count: 0,
+                rewards: []
+              }
+            }
+
+            groups[fundNo].rewards.push(reward)
+            groups[fundNo].total_rewards += reward.reward_amount
+            groups[fundNo].reward_count += 1
+
+            if (reward.is_paid) {
+              groups[fundNo].total_paid += reward.reward_amount
+            } else {
+              groups[fundNo].total_unpaid += reward.reward_amount
+            }
+
+            return groups
+          }, {} as Record<number, PropertyReward>)
+
+          const propertyRewardsArray = Object.values(propertyGroups)
+          setPropertyRewards(propertyRewardsArray)
 
           // Calculate totals
           const totalEarned = rewardsWithNames.reduce((sum, r) => sum + r.reward_amount, 0)
@@ -124,11 +169,14 @@ export default function RewardsPage() {
     return new Date(dateString).toLocaleDateString('ja-JP')
   }
 
-  const filteredRewards = rewards.filter(reward => {
-    if (filter === 'paid') return reward.is_paid
-    if (filter === 'unpaid') return !reward.is_paid
-    return true
-  })
+  const filteredPropertyRewards = propertyRewards.map(property => ({
+    ...property,
+    rewards: property.rewards.filter(reward => {
+      if (filter === 'paid') return reward.is_paid
+      if (filter === 'unpaid') return !reward.is_paid
+      return true
+    })
+  })).filter(property => property.rewards.length > 0)
 
   if (loading) {
     return (
@@ -279,84 +327,93 @@ export default function RewardsPage() {
           </div>
         </div>
 
-        {/* Rewards Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">報酬履歴</h3>
-          </div>
+        {/* Property-wise Rewards */}
+        <div className="space-y-6">
+          {filteredPropertyRewards.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-8 text-center">
+              <p className="text-gray-500">報酬データがありません</p>
+            </div>
+          ) : (
+            filteredPropertyRewards.map((property) => (
+              <div key={property.fund_no} className="bg-white rounded-lg shadow overflow-hidden">
+                {/* Property Header */}
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{property.fund_name}</h3>
+                      <p className="text-sm text-gray-600">ファンドNo: {property.fund_no} | {property.fund_type}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-gray-900">
+                        {formatCurrency(property.total_rewards)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        支払済み: {formatCurrency(property.total_paid)} |
+                        未払い: {formatCurrency(property.total_unpaid)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    日付
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    紹介先
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ファンド
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    段階
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    報酬額
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ステータス
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredRewards.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                      報酬データがありません
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRewards.map((reward) => (
-                    <tr key={reward.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                          {formatDate(reward.calculation_date)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {reward.referral_user_name || reward.referral_user_id || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium">{reward.investment?.fund_name || 'N/A'}</div>
-                          <div className="text-gray-500">{reward.investment?.fund_type || ''}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                          {reward.tier_level}段目
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        {formatCurrency(reward.reward_amount)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          reward.is_paid
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {reward.is_paid ? '支払済み' : '未払い'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                {/* Property Rewards Table */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          日付
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          紹介先
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          段階
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          報酬額
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ステータス
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {property.rewards.map((reward) => (
+                        <tr key={reward.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                              {formatDate(reward.calculation_date)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {reward.referral_user_name || reward.referral_user_id || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                              {reward.tier_level}段目
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {formatCurrency(reward.reward_amount)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              reward.is_paid
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {reward.is_paid ? '支払済み' : '未払い'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </main>
     </div>

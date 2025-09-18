@@ -28,13 +28,65 @@ function CSVUpload({ title, description, tableName, icon }: CSVUploadProps) {
       const text = await file.text()
       const parsed = Papa.parse(text, { header: true, skipEmptyLines: true })
 
-      // Here you would process the CSV data and insert into Supabase
-      // For now, just show the parsed data
-      setResult(`解析完了: ${parsed.data.length}行のデータを検出しました`)
+      if (parsed.errors.length > 0) {
+        setResult(`CSV解析エラー: ${parsed.errors.map(e => e.message).join(', ')}`)
+        return
+      }
 
-      console.log(`${tableName} data:`, parsed.data)
+      // First, debug the CSV data
+      const debugResponse = await fetch('/api/debug-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          csvData: parsed.data,
+          tableName
+        })
+      })
+
+      const debugResult = await debugResponse.json()
+      console.log('CSV Debug Info:', debugResult)
+
+      if (!debugResult.success) {
+        setResult(`❌ CSV確認エラー: ${debugResult.error}`)
+        return
+      }
+
+      // Show debug info first
+      setResult(`📊 CSV解析結果:
+・行数: ${debugResult.debug_info.csv_rows}
+・ヘッダー: ${debugResult.debug_info.csv_headers.join(', ')}
+・不足ヘッダー: ${debugResult.debug_info.missing_required_headers.join(', ') || 'なし'}
+・${debugResult.debug_info.database_connection}
+
+サンプルデータ:
+${JSON.stringify(debugResult.debug_info.sample_data, null, 2)}
+
+データアップロード中...`)
+
+      // Send data to API for processing
+      const response = await fetch('/api/csv-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tableName,
+          data: parsed.data
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setResult(`✅ ${result.message}${result.errors ? `\n⚠️ 警告: ${result.errors.join(', ')}` : ''}`)
+      } else {
+        setResult(`❌ エラー: ${result.error}`)
+      }
+
     } catch (error) {
-      setResult(`エラー: ${error}`)
+      setResult(`❌ アップロードエラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setUploading(false)
     }
@@ -84,10 +136,134 @@ function CSVUpload({ title, description, tableName, icon }: CSVUploadProps) {
 export default function AdminPage() {
   const router = useRouter()
   const supabase = createClient()
+  const [creatingUsers, setCreatingUsers] = useState(false)
+  const [authResult, setAuthResult] = useState<string>('')
+  const [checkingData, setCheckingData] = useState(false)
+  const [dataStatus, setDataStatus] = useState<string>('')
+  const [fixingRLS, setFixingRLS] = useState(false)
+  const [rlsResult, setRlsResult] = useState<string>('')
+  const [testingInsert, setTestingInsert] = useState(false)
+  const [insertResult, setInsertResult] = useState<string>('')
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  const handleCreateAuthUsers = async () => {
+    setCreatingUsers(true)
+    setAuthResult('')
+
+    try {
+      const response = await fetch('/api/create-auth-users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setAuthResult(`✅ ${result.message}${result.errors ? `\n⚠️ エラー件数: ${result.errors.length}` : ''}`)
+      } else {
+        setAuthResult(`❌ エラー: ${result.error}`)
+      }
+
+    } catch (error) {
+      setAuthResult(`❌ 認証ユーザー作成エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setCreatingUsers(false)
+    }
+  }
+
+  const handleCheckData = async () => {
+    setCheckingData(true)
+    setDataStatus('')
+
+    try {
+      const response = await fetch('/api/check-users', {
+        method: 'GET'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const data = result.data
+        setDataStatus(`📊 データベース状況:
+・データベースユーザー数: ${data.total_database_users}
+・認証ユーザー数: ${data.total_auth_users}
+・連携済みユーザー数: ${data.users_with_auth_id}
+
+サンプルユーザー:
+${data.database_users?.map((u: any) => `・${u.user_id} (${u.mail_address}) - 認証ID: ${u.id ? 'あり' : 'なし'}`).join('\n') || 'データなし'}`)
+      } else {
+        setDataStatus(`❌ エラー: ${result.error}`)
+      }
+
+    } catch (error) {
+      setDataStatus(`❌ データ確認エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setCheckingData(false)
+    }
+  }
+
+  const handleFixRLS = async () => {
+    setFixingRLS(true)
+    setRlsResult('')
+
+    try {
+      const response = await fetch('/api/fix-rls', {
+        method: 'POST'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setRlsResult(`✅ ${result.message}`)
+      } else {
+        setRlsResult(`❌ エラー: ${result.error}
+
+📋 手動修正用SQL:
+${result.manual_sql || ''}`)
+      }
+
+    } catch (error) {
+      setRlsResult(`❌ RLS修正エラー: ${error instanceof Error ? error.message : 'Unknown error'}
+
+Supabaseダッシュボードで手動でRLSポリシーを修正してください。`)
+    } finally {
+      setFixingRLS(false)
+    }
+  }
+
+  const handleTestInsert = async () => {
+    setTestingInsert(true)
+    setInsertResult('')
+
+    try {
+      const response = await fetch('/api/test-insert', {
+        method: 'POST'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setInsertResult(`✅ テスト挿入成功！
+挿入されたユーザー: ${result.inserted_user?.[0]?.user_id}
+現在のユーザー数: ${result.total_users}
+
+現在のユーザー一覧:
+${result.current_users?.map((u: any) => `・${u.user_id} (${u.kanji_last_name} ${u.kanji_first_name})`).join('\n') || 'なし'}`)
+      } else {
+        setInsertResult(`❌ テスト挿入失敗: ${result.error}`)
+      }
+
+    } catch (error) {
+      setInsertResult(`❌ テスト挿入エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setTestingInsert(false)
+    }
   }
 
   const csvConfigs = [
@@ -185,6 +361,116 @@ export default function AdminPage() {
         </div>
 
         <div className="mt-8 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <Users className="h-5 w-5 inline mr-2" />
+            認証ユーザー作成
+          </h3>
+          <p className="text-gray-600 mb-4">
+            CSVアップロード後、ユーザーがログインできるように認証アカウントを作成します。
+            <br />
+            <strong>注意:</strong> CSVのパスワードが使用されます。パスワードがない場合はユーザーIDがパスワードになります。
+          </p>
+          <button
+            onClick={handleCreateAuthUsers}
+            disabled={creatingUsers}
+            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {creatingUsers ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <Users className="h-4 w-4 mr-2" />
+            )}
+            {creatingUsers ? '認証ユーザー作成中...' : '認証ユーザーを作成'}
+          </button>
+          {authResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap ${authResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
+              {authResult}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <Settings className="h-5 w-5 inline mr-2" />
+            RLSポリシー修正
+          </h3>
+          <p className="text-gray-600 mb-4">
+            406エラーが発生している場合、Row Level Securityポリシーを修正します。
+          </p>
+          <button
+            onClick={handleFixRLS}
+            disabled={fixingRLS}
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {fixingRLS ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <Settings className="h-4 w-4 mr-2" />
+            )}
+            {fixingRLS ? 'RLS修正中...' : 'RLSポリシーを修正'}
+          </button>
+          {rlsResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${rlsResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
+              {rlsResult}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <TrendingUp className="h-5 w-5 inline mr-2" />
+            データベース挿入テスト
+          </h3>
+          <p className="text-gray-600 mb-4">
+            データベースに実際にデータが挿入できるかテストします。
+          </p>
+          <button
+            onClick={handleTestInsert}
+            disabled={testingInsert}
+            className="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {testingInsert ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <TrendingUp className="h-4 w-4 mr-2" />
+            )}
+            {testingInsert ? 'テスト中...' : 'データベース挿入テスト'}
+          </button>
+          {insertResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${insertResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
+              {insertResult}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <FileText className="h-5 w-5 inline mr-2" />
+            データベース状況確認
+          </h3>
+          <p className="text-gray-600 mb-4">
+            現在のデータベースとユーザー認証の状況を確認します。
+          </p>
+          <button
+            onClick={handleCheckData}
+            disabled={checkingData}
+            className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {checkingData ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            {checkingData ? 'データ確認中...' : 'データ状況を確認'}
+          </button>
+          {dataStatus && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${dataStatus.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
+              {dataStatus}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             <Settings className="h-5 w-5 inline mr-2" />
             ファンド設定管理

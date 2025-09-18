@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_increment_id INTEGER,
         user_id VARCHAR UNIQUE NOT NULL,
-        password_hash VARCHAR NOT NULL,
+        password VARCHAR,
+        password_hash VARCHAR,
         lender_no INTEGER,
         mail_address VARCHAR UNIQUE,
         kanji_last_name VARCHAR,
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
         .upsert({
           id: testUserId,
           user_id: 'TEST001',
+          password: 'password123',
           password_hash: '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
           mail_address: 'admin@masaasp.com',
           kanji_last_name: '管理者',

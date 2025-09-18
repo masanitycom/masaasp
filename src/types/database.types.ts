@@ -14,7 +14,8 @@ export interface Database {
           id: string
           user_increment_id: number | null
           user_id: string
-          password_hash: string
+          password: string | null
+          password_hash: string | null
           lender_no: number | null
           mail_address: string | null
           kanji_last_name: string | null
@@ -34,7 +35,8 @@ export interface Database {
           id?: string
           user_increment_id?: number | null
           user_id: string
-          password_hash: string
+          password?: string | null
+          password_hash?: string | null
           lender_no?: number | null
           mail_address?: string | null
           kanji_last_name?: string | null
@@ -54,7 +56,8 @@ export interface Database {
           id?: string
           user_increment_id?: number | null
           user_id?: string
-          password_hash?: string
+          password?: string | null
+          password_hash?: string | null
           lender_no?: number | null
           mail_address?: string | null
           kanji_last_name?: string | null

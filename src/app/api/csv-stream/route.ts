@@ -88,17 +88,26 @@ export async function POST(request: NextRequest) {
             update_time: new Date().toISOString()
           })).filter(row => row.user_id)
         } else if (tableName === 'investment_history') {
-          transformedData = chunkData.map((row: any) => ({
-            payment_date: row.payment_date || row['入金日'] || row['PAYMENT_DATE'],
-            user_id: row.user_id || row['ユーザーID'] || row['USER_ID'],
-            user_name: row.user_name || row['ユーザー名'] || row['USER_NAME'],
-            amount: parseFloat(row.amount || row['金額'] || row['AMOUNT'] || '0'),
-            fund_no: parseInt(row.fund_no || row['ファンド番号'] || row['FUND_NO'] || '0'),
-            fund_name: row.fund_name || row['ファンド名'] || row['FUND_NAME'],
-            fund_type: row.fund_type || row['ファンドタイプ'] || row['FUND_TYPE'],
-            commission_rate: parseFloat(row.commission_rate || row['手数料率'] || row['COMMISSION_RATE'] || '0'),
-            created_at: new Date().toISOString()
-          })).filter(row => row.user_id && row.amount > 0)
+          transformedData = chunkData.map((row: any) => {
+            // Convert Japanese date format (YYYY/MM/DD) to ISO format
+            let paymentDate = row['入金日'] || row.payment_date || row['PAYMENT_DATE']
+            if (paymentDate && paymentDate.includes('/')) {
+              const [year, month, day] = paymentDate.split('/')
+              paymentDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+            }
+
+            return {
+              payment_date: paymentDate,
+              user_id: row['ID'] || row['id'] || row.user_id || row['ユーザーID'],
+              user_name: row['氏名'] || row.user_name || row['ユーザー名'],
+              amount: parseFloat(row['H'] || row['金額'] || row.amount || '0'),
+              fund_no: parseInt(row['ファンドNo'] || row['ファンド番号'] || row.fund_no || '0'),
+              fund_name: row['ファンド名'] || row.fund_name || row['FUND_NAME'],
+              fund_type: row['ファンドタイプ'] || row.fund_type || 'standard',
+              commission_rate: parseFloat(row['手数料率'] || row.commission_rate || '1.0'),
+              created_at: new Date().toISOString()
+            }
+          }).filter(row => row.user_id && row.amount > 0)
         } else if (tableName === 'matched_data') {
           transformedData = chunkData.map((row: any) => ({
             // マッチングデータの処理（必要に応じて追加）
@@ -106,9 +115,24 @@ export async function POST(request: NextRequest) {
         }
 
         if (transformedData.length > 0) {
-          const { data: insertResult, error } = await supabase
-            .from(tableName)
-            .upsert(transformedData, { onConflict: 'user_id' })
+          // Different upsert strategies for different tables
+          let insertResult, error
+
+          if (tableName === 'users') {
+            ({ data: insertResult, error } = await supabase
+              .from(tableName)
+              .upsert(transformedData, { onConflict: 'user_id' }))
+          } else if (tableName === 'camel_levels') {
+            // camel_levels doesn't have unique constraint, use insert
+            ({ data: insertResult, error } = await supabase
+              .from(tableName)
+              .insert(transformedData))
+          } else {
+            // For other tables, use insert
+            ({ data: insertResult, error } = await supabase
+              .from(tableName)
+              .insert(transformedData))
+          }
 
           if (error) {
             errors.push(`Chunk ${Math.floor(i/chunkSize)}: ${error.message}`)

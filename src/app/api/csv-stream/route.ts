@@ -59,24 +59,50 @@ export async function POST(request: NextRequest) {
             mail_address: row.mail_address || row['メールアドレス'] || row['MAIL_ADDRESS'],
             kanji_last_name: row.kanji_last_name || row['漢字姓'] || row['KANJI_LAST_NAME'],
             kanji_first_name: row.kanji_first_name || row['漢字名'] || row['KANJI_FIRST_NAME'],
-            kana_last_name: row.kana_last_name || row['カナ姓'] || row['KANA_LAST_NAME'],
-            kana_first_name: row.kana_first_name || row['カナ名'] || row['KANA_FIRST_NAME'],
-            birth_date: row.birth_date || row['生年月日'] || row['BIRTH_DATE'],
-            gender: row.gender || row['性別'] || row['GENDER'],
-            zip_code: row.zip_code || row['郵便番号'] || row['ZIP_CODE'],
-            address: row.address || row['住所'] || row['ADDRESS'],
-            phone_number: row.phone_number || row['電話番号'] || row['PHONE_NUMBER'],
-            bank_name: row.bank_name || row['銀行名'] || row['BANK_NAME'],
-            branch_name: row.branch_name || row['支店名'] || row['BRANCH_NAME'],
-            account_type: row.account_type || row['口座種別'] || row['ACCOUNT_TYPE'],
-            account_number: row.account_number || row['口座番号'] || row['ACCOUNT_NUMBER'],
-            account_holder: row.account_holder || row['口座名義'] || row['ACCOUNT_HOLDER'],
+            furi_last_name: row.furi_last_name || row['フリガナ姓'] || row['カナ姓'] || row['FURI_LAST_NAME'],
+            furi_first_name: row.furi_first_name || row['フリガナ名'] || row['カナ名'] || row['FURI_FIRST_NAME'],
+            fixed_line_phone: row.fixed_line_phone || row['電話番号'] || row['PHONE_NUMBER'],
+            lender_no: row.lender_no || row['貸金業者番号'] || null,
+            user_increment_id: row.user_increment_id || null,
             password_hash: row.password_hash || row['パスワードハッシュ'] || 'placeholder_hash',
             system_access_flg: row.system_access_flg !== undefined ? row.system_access_flg : true,
             admin_flg: row.admin_flg !== undefined ? row.admin_flg : false,
-            registration_date: row.registration_date || new Date().toISOString(),
-            last_login_date: row.last_login_date || null
+            status_flg: 1,
+            make_time: new Date().toISOString(),
+            update_time: new Date().toISOString()
           })).filter(row => row.user_id && row.mail_address)
+        } else if (tableName === 'camel_levels') {
+          transformedData = chunkData.map((row: any) => ({
+            user_id: row.user_id || row['ユーザーID'] || row['USER_ID'],
+            int_id_camel: row.int_id_camel || row['内部ID'] || row['INT_ID_CAMEL'],
+            level: row.level || row['レベル'] || row['LEVEL'],
+            name: row.name || row['名前'] || row['NAME'],
+            furi_name: row.furi_name || row['フリガナ'] || row['FURI_NAME'],
+            pos: row.pos || row['位置'] || row['POS'],
+            upline: row.upline || row['アップライン'] || row['UPLINE'],
+            depth_level: parseInt(row.depth_level || row['深度'] || row['DEPTH_LEVEL'] || '0'),
+            direct_children_count: 0,
+            total_children_count: 0,
+            status_flg: 1,
+            make_time: new Date().toISOString(),
+            update_time: new Date().toISOString()
+          })).filter(row => row.user_id)
+        } else if (tableName === 'investment_history') {
+          transformedData = chunkData.map((row: any) => ({
+            payment_date: row.payment_date || row['入金日'] || row['PAYMENT_DATE'],
+            user_id: row.user_id || row['ユーザーID'] || row['USER_ID'],
+            user_name: row.user_name || row['ユーザー名'] || row['USER_NAME'],
+            amount: parseFloat(row.amount || row['金額'] || row['AMOUNT'] || '0'),
+            fund_no: parseInt(row.fund_no || row['ファンド番号'] || row['FUND_NO'] || '0'),
+            fund_name: row.fund_name || row['ファンド名'] || row['FUND_NAME'],
+            fund_type: row.fund_type || row['ファンドタイプ'] || row['FUND_TYPE'],
+            commission_rate: parseFloat(row.commission_rate || row['手数料率'] || row['COMMISSION_RATE'] || '0'),
+            created_at: new Date().toISOString()
+          })).filter(row => row.user_id && row.amount > 0)
+        } else if (tableName === 'matched_data') {
+          transformedData = chunkData.map((row: any) => ({
+            // マッチングデータの処理（必要に応じて追加）
+          })).filter(row => false) // 現時点では処理をスキップ
         }
 
         if (transformedData.length > 0) {

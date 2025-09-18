@@ -12,10 +12,14 @@ export async function POST(request: NextRequest) {
       mail_address: 'test@masaasp.com',
       kanji_last_name: 'テスト',
       kanji_first_name: '太郎',
+      furi_last_name: 'テスト',
+      furi_first_name: 'タロウ',
       password_hash: 'test_hash_123',
       system_access_flg: true,
       admin_flg: true,
-      registration_date: new Date().toISOString()
+      status_flg: 1,
+      make_time: new Date().toISOString(),
+      update_time: new Date().toISOString()
     }
 
     // Insert into database

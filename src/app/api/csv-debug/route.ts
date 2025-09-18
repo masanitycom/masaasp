@@ -67,10 +67,14 @@ export async function POST(request: NextRequest) {
           mail_address: `debug-${Date.now()}@test.com`,
           kanji_last_name: testRow.kanji_last_name || testRow['漢字姓'] || 'テスト',
           kanji_first_name: testRow.kanji_first_name || testRow['漢字名'] || '太郎',
+          furi_last_name: 'テスト',
+          furi_first_name: 'デバッグ',
           password_hash: 'debug_hash_test',
           system_access_flg: true,
           admin_flg: false,
-          registration_date: new Date().toISOString()
+          status_flg: 1,
+          make_time: new Date().toISOString(),
+          update_time: new Date().toISOString()
         }
 
         const { data: insertResult, error: insertError } = await supabase

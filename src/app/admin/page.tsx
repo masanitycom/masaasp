@@ -77,6 +77,14 @@ ${JSON.stringify(debugResult.debug_info.sample_data, null, 2)}
         })
       })
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text()
+        setResult(`❌ サーバーエラー: ${response.status} ${response.statusText}\n\n${textResponse.substring(0, 500)}`)
+        return
+      }
+
       const result = await response.json()
 
       if (result.success) {
@@ -86,7 +94,13 @@ ${JSON.stringify(debugResult.debug_info.sample_data, null, 2)}
       }
 
     } catch (error) {
-      setResult(`❌ アップロードエラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('CSV Upload Error:', error)
+      setResult(`❌ アップロードエラー: ${error instanceof Error ? error.message : 'Unknown error'}
+
+デバッグ情報:
+・ファイル名: ${file?.name}
+・ファイルサイズ: ${file?.size} bytes
+・テーブル名: ${tableName}`)
     } finally {
       setUploading(false)
     }
@@ -161,6 +175,14 @@ export default function AdminPage() {
           'Content-Type': 'application/json'
         }
       })
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text()
+        setAuthResult(`❌ サーバーエラー: ${response.status} ${response.statusText}\n\n${textResponse.substring(0, 500)}`)
+        return
+      }
 
       const result = await response.json()
 

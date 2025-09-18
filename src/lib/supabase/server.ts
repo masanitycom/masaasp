@@ -1,13 +1,18 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/types/database.types'
+import { config, hasValidSupabaseConfig } from '@/lib/config'
 
 export async function createServerComponentClient() {
   const cookieStore = await cookies()
 
+  if (!hasValidSupabaseConfig()) {
+    console.warn('Using placeholder Supabase configuration. Please set environment variables.')
+  }
+
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    config.supabase.url,
+    config.supabase.anonKey,
     {
       cookies: {
         getAll() {
@@ -32,9 +37,13 @@ export async function createServerComponentClient() {
 export async function createServerActionClient() {
   const cookieStore = await cookies()
 
+  if (!hasValidSupabaseConfig()) {
+    console.warn('Using placeholder Supabase configuration. Please set environment variables.')
+  }
+
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    config.supabase.url,
+    config.supabase.anonKey,
     {
       cookies: {
         getAll() {

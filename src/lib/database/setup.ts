@@ -27,7 +27,7 @@ export const setupDatabase = async () => {
         const result = await tableFunc(supabase)
         results.push({ success: true, step: tableFunc.name, result })
       } catch (error) {
-        results.push({ success: false, step: tableFunc.name, error: error.message })
+        results.push({ success: false, step: tableFunc.name, error: error instanceof Error ? error.message : 'Unknown error' })
         console.error(`Error in ${tableFunc.name}:`, error)
       }
     }
@@ -35,7 +35,7 @@ export const setupDatabase = async () => {
     return { success: true, results }
   } catch (error) {
     console.error('Database setup error:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' }
   }
 }
 

@@ -237,6 +237,8 @@ export default function AdminPage() {
   const [insertResult, setInsertResult] = useState<string>('')
   const [debuggingDB, setDebuggingDB] = useState(false)
   const [debugDBResult, setDebugDBResult] = useState<string>('')
+  const [creatingTestUser, setCreatingTestUser] = useState(false)
+  const [testUserResult, setTestUserResult] = useState<string>('')
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -414,6 +416,45 @@ ${debug.errors.connection_error || debug.errors.users_error ? `\n❌ エラー:\
     }
   }
 
+  const handleCreateTestUser = async () => {
+    setCreatingTestUser(true)
+    setTestUserResult('')
+
+    try {
+      const response = await fetch('/api/create-test-user', {
+        method: 'POST'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setTestUserResult(`✅ テストユーザー作成成功！
+
+📧 ログイン情報:
+・メールアドレス: ${result.user.email}
+・ユーザーID: ${result.user.user_id}
+・パスワード: ${result.user.password}
+・管理者権限: ${result.user.admin ? 'あり' : 'なし'}
+
+🔧 作成結果:
+・データベース: ${result.database_result ? '成功' : '失敗'}
+・認証システム: ${result.auth_result}
+
+📋 ログイン手順:
+${result.login_instructions.map((step: string) => `${step}`).join('\n')}
+
+今すぐログインテストができます！`)
+      } else {
+        setTestUserResult(`❌ テストユーザー作成失敗: ${result.error}`)
+      }
+
+    } catch (error) {
+      setTestUserResult(`❌ テストユーザー作成エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setCreatingTestUser(false)
+    }
+  }
+
   const csvConfigs = [
     {
       title: 'ユーザーデータ',
@@ -533,6 +574,33 @@ ${debug.errors.connection_error || debug.errors.users_error ? `\n❌ エラー:\
           {authResult && (
             <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap ${authResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
               {authResult}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <Users className="h-5 w-5 inline mr-2" />
+            テストユーザー作成
+          </h3>
+          <p className="text-gray-600 mb-4">
+            ログインテスト用のユーザー（TEST001）を作成します。データベースと認証システムの両方に登録されます。
+          </p>
+          <button
+            onClick={handleCreateTestUser}
+            disabled={creatingTestUser}
+            className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {creatingTestUser ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <Users className="h-4 w-4 mr-2" />
+            )}
+            {creatingTestUser ? 'テストユーザー作成中...' : 'テストユーザーを作成'}
+          </button>
+          {testUserResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${testUserResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
+              {testUserResult}
             </div>
           )}
         </div>

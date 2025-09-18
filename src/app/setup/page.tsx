@@ -40,9 +40,16 @@ export default function SetupPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl w-full space-y-8">
         <div className="text-center">
-          <Database className="mx-auto h-16 w-16 text-indigo-600" />
+          <div className="flex justify-center mb-4">
+            <img
+              src="/MASAASPLOGO.svg"
+              alt="MASAASP"
+              className="h-16 w-auto"
+            />
+          </div>
+          <Database className="mx-auto h-12 w-12 text-indigo-600" />
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            MASAASP データベースセットアップ
+            データベースセットアップ
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             データベーステーブルとテストユーザーを自動作成します

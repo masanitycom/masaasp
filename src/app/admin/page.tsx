@@ -25,72 +25,54 @@ function CSVUpload({ title, description, tableName, icon }: CSVUploadProps) {
     setResult('')
 
     try {
-      const text = await file.text()
-      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true })
-
-      if (parsed.errors.length > 0) {
-        setResult(`CSV解析エラー: ${parsed.errors.map(e => e.message).join(', ')}`)
+      // Check file size first
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (file.size > maxSize) {
+        setResult(`❌ ファイルサイズが大きすぎます: ${(file.size / 1024 / 1024).toFixed(2)}MB\n最大サイズ: 10MB`)
         return
       }
 
-      // First, debug the CSV data
-      const debugResponse = await fetch('/api/debug-csv', {
+      setResult(`📤 ファイルアップロード中...
+・ファイル名: ${file.name}
+・サイズ: ${(file.size / 1024 / 1024).toFixed(2)}MB
+・テーブル: ${tableName}`)
+
+      // Use FormData for file upload
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tableName', tableName)
+
+      const response = await fetch('/api/csv-stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          csvData: parsed.data,
-          tableName
-        })
-      })
-
-      const debugResult = await debugResponse.json()
-      console.log('CSV Debug Info:', debugResult)
-
-      if (!debugResult.success) {
-        setResult(`❌ CSV確認エラー: ${debugResult.error}`)
-        return
-      }
-
-      // Show debug info first
-      setResult(`📊 CSV解析結果:
-・行数: ${debugResult.debug_info.csv_rows}
-・ヘッダー: ${debugResult.debug_info.csv_headers.join(', ')}
-・不足ヘッダー: ${debugResult.debug_info.missing_required_headers.join(', ') || 'なし'}
-・${debugResult.debug_info.database_connection}
-
-サンプルデータ:
-${JSON.stringify(debugResult.debug_info.sample_data, null, 2)}
-
-データアップロード中...`)
-
-      // Send data to API for processing
-      const response = await fetch('/api/csv-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          tableName,
-          data: parsed.data
-        })
+        body: formData
       })
 
       // Check if response is JSON
       const contentType = response.headers.get('content-type')
       if (!contentType || !contentType.includes('application/json')) {
         const textResponse = await response.text()
-        setResult(`❌ サーバーエラー: ${response.status} ${response.statusText}\n\n${textResponse.substring(0, 500)}`)
+        setResult(`❌ サーバーエラー: ${response.status} ${response.statusText}
+
+エラー詳細:
+${textResponse.substring(0, 1000)}`)
         return
       }
 
       const result = await response.json()
 
       if (result.success) {
-        setResult(`✅ ${result.message}${result.errors ? `\n⚠️ 警告: ${result.errors.join(', ')}` : ''}`)
+        setResult(`✅ ${result.message}
+
+詳細:
+・処理済み: ${result.details?.totalProcessed || 0}件
+・エラー: ${result.details?.totalErrors || 0}件
+・総行数: ${result.details?.totalRows || 0}行
+
+${result.details?.errors?.length > 0 ? `\n⚠️ エラー詳細:\n${result.details.errors.join('\n')}` : ''}`)
       } else {
-        setResult(`❌ エラー: ${result.error}`)
+        setResult(`❌ エラー: ${result.error}
+
+詳細: ${result.details || ''}`)
       }
 
     } catch (error) {
@@ -99,8 +81,13 @@ ${JSON.stringify(debugResult.debug_info.sample_data, null, 2)}
 
 デバッグ情報:
 ・ファイル名: ${file?.name}
-・ファイルサイズ: ${file?.size} bytes
-・テーブル名: ${tableName}`)
+・ファイルサイズ: ${(file?.size / 1024 / 1024).toFixed(2)}MB
+・テーブル名: ${tableName}
+
+対処法:
+1. ファイルサイズを10MB以下に分割してください
+2. CSVファイルが正しい形式か確認してください
+3. ブラウザコンソールでエラー詳細を確認してください`)
     } finally {
       setUploading(false)
     }

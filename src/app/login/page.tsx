@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form'
 import { LogIn } from 'lucide-react'
 
 type LoginFormData = {
-  userId: string
+  loginId: string
   password: string
 }
 
@@ -24,51 +24,72 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // Simple test credentials check for TEST001
-      if (data.userId === 'TEST001' && data.password === 'password123') {
-        // Direct auth with known email
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: 'admin@masaasp.com',
-          password: 'password123',
-        })
+      const loginId = data.loginId.trim()
+      const password = data.password
 
-        if (authError) {
-          setError('認証エラー: ' + authError.message)
-        } else {
-          router.push('/dashboard')
+      // Check if loginId is an email address
+      const isEmail = loginId.includes('@')
+
+      let userEmail = ''
+      let userData = null
+
+      if (isEmail) {
+        // Login with email address
+        userEmail = loginId
+
+        // Check if user exists in our database with this email
+        const { data: userRecord, error: userError } = await supabase
+          .from('users')
+          .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
+          .eq('mail_address', loginId)
+          .single()
+
+        if (userError || !userRecord) {
+          setError('メールアドレスまたはパスワードが正しくありません')
+          setLoading(false)
+          return
         }
-        setLoading(false)
-        return
+
+        userData = userRecord
+      } else {
+        // Login with user_id
+        const { data: userRecord, error: userError } = await supabase
+          .from('users')
+          .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
+          .eq('user_id', loginId)
+          .single()
+
+        if (userError || !userRecord) {
+          setError('ユーザーIDまたはパスワードが正しくありません')
+          setLoading(false)
+          return
+        }
+
+        userData = userRecord
+        userEmail = userRecord.mail_address
       }
 
-      // For other users, check the database first
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('mail_address, system_access_flg')
-        .eq('user_id', data.userId)
-        .single()
-
-      if (userError || !userData) {
-        setError('ユーザーIDまたはパスワードが正しくありません')
-        setLoading(false)
-        return
-      }
-
+      // Check system access permission
       if (!userData.system_access_flg) {
         setError('このアカウントはシステムへのアクセスが許可されていません')
         setLoading(false)
         return
       }
 
-      // Sign in with Supabase Auth using email
+      // Authenticate with Supabase Auth using email
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: userData.mail_address,
-        password: data.password,
+        email: userEmail,
+        password: password,
       })
 
       if (authError) {
-        setError('ユーザーIDまたはパスワードが正しくありません')
+        if (authError.message.includes('Invalid login credentials')) {
+          setError('パスワードが正しくありません')
+        } else {
+          setError('認証エラー: ' + authError.message)
+        }
       } else {
+        // Login successful
         router.push('/dashboard')
       }
     } catch (err) {
@@ -93,20 +114,21 @@ export default function LoginPage() {
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div>
-              <label htmlFor="userId" className="block text-sm font-medium text-gray-700">
-                ユーザーID
+              <label htmlFor="loginId" className="block text-sm font-medium text-gray-700">
+                メールアドレス または ユーザーID
               </label>
               <div className="mt-1">
                 <input
-                  {...register('userId', {
-                    required: 'ユーザーIDを入力してください'
+                  {...register('loginId', {
+                    required: 'メールアドレスまたはユーザーIDを入力してください'
                   })}
                   type="text"
                   autoComplete="username"
+                  placeholder="admin@masaasp.com または TEST001"
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
-                {errors.userId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.userId.message}</p>
+                {errors.loginId && (
+                  <p className="mt-1 text-sm text-red-600">{errors.loginId.message}</p>
                 )}
               </div>
             </div>

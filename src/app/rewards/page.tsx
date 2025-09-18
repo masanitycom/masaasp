@@ -129,7 +129,7 @@ export default function RewardsPage() {
             return groups
           }, {} as Record<number, PropertyReward>)
 
-          const propertyRewardsArray = Object.values(propertyGroups)
+          const propertyRewardsArray = Object.values(propertyGroups) as PropertyReward[]
           setPropertyRewards(propertyRewardsArray)
 
           // Calculate totals

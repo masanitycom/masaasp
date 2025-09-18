@@ -17,6 +17,8 @@ function CSVUpload({ title, description, tableName, icon }: CSVUploadProps) {
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<string>('')
+  const [debugging, setDebugging] = useState(false)
+  const [debugResult, setDebugResult] = useState<string>('')
 
   const handleUpload = async () => {
     if (!file) return
@@ -93,6 +95,72 @@ ${result.details?.errors?.length > 0 ? `\n⚠️ エラー詳細:\n${result.deta
     }
   }
 
+  const handleDebugCSV = async () => {
+    if (!file) return
+
+    setDebugging(true)
+    setDebugResult('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tableName', tableName)
+
+      setDebugResult(`🔍 CSVファイル解析中...
+・ファイル名: ${file.name}
+・サイズ: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
+
+      const response = await fetch('/api/csv-debug', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const debug = result.debug_analysis
+        setDebugResult(`📊 CSV解析結果:
+
+📁 ファイル情報:
+・名前: ${debug.file_info.name}
+・サイズ: ${(debug.file_info.size / 1024 / 1024).toFixed(2)}MB
+・タイプ: ${debug.file_info.type}
+
+📋 CSV構造:
+・総行数: ${debug.csv_structure.total_lines}
+・ヘッダー: ${debug.csv_structure.headers.join(', ')}
+・サンプル数: ${debug.csv_structure.sample_count}
+
+🧪 データベーステスト:
+・接続: ${debug.database_tests.connection}
+・挿入テスト: ${debug.database_tests.insertion}
+・RLSチェック: ${debug.database_tests.rls_check}
+${debug.database_tests.connection_error ? `・接続エラー: ${debug.database_tests.connection_error}` : ''}
+
+🔧 環境設定:
+・Supabase URL: ${debug.environment.supabase_url}
+・匿名キー: ${debug.environment.anon_key}
+・サービスキー: ${debug.environment.service_key}
+
+📄 サンプルデータ (最初の3行):
+${debug.sample_data.map((row: any, idx: number) =>
+  `${idx + 1}. ${Object.entries(row).map(([k, v]) => `${k}: ${v}`).join(', ')}`
+).join('\n')}
+
+✅ 処理ステップ:
+${debug.processing_steps.map((step: string) => `・${step}`).join('\n')}`)
+
+      } else {
+        setDebugResult(`❌ デバッグエラー: ${result.error}`)
+      }
+
+    } catch (error) {
+      setDebugResult(`❌ デバッグ処理エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setDebugging(false)
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center mb-4">
@@ -111,22 +179,44 @@ ${result.details?.errors?.length > 0 ? `\n⚠️ エラー詳細:\n${result.deta
           />
         </div>
 
-        <button
-          onClick={handleUpload}
-          disabled={!file || uploading}
-          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
-        >
-          {uploading ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-          ) : (
-            <Upload className="h-4 w-4 mr-2" />
-          )}
-          {uploading ? 'アップロード中...' : 'アップロード'}
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleUpload}
+            disabled={!file || uploading}
+            className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            {uploading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <Upload className="h-4 w-4 mr-2" />
+            )}
+            {uploading ? 'アップロード中...' : 'アップロード'}
+          </button>
+
+          <button
+            onClick={handleDebugCSV}
+            disabled={!file || debugging}
+            className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            {debugging ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            {debugging ? '解析中...' : 'CSVデバッグ'}
+          </button>
+        </div>
 
         {result && (
           <div className={`p-3 rounded-md ${result.includes('エラー') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
-            {result}
+            <pre className="whitespace-pre-wrap text-xs">{result}</pre>
+          </div>
+        )}
+
+        {debugResult && (
+          <div className="p-3 rounded-md bg-blue-50 text-blue-800">
+            <h4 className="font-semibold mb-2">🔍 CSV解析結果</h4>
+            <pre className="whitespace-pre-wrap text-xs">{debugResult}</pre>
           </div>
         )}
       </div>

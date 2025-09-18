@@ -145,6 +145,8 @@ export default function AdminPage() {
   const [rlsResult, setRlsResult] = useState<string>('')
   const [testingInsert, setTestingInsert] = useState(false)
   const [insertResult, setInsertResult] = useState<string>('')
+  const [debuggingDB, setDebuggingDB] = useState(false)
+  const [debugDBResult, setDebugDBResult] = useState<string>('')
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -272,6 +274,53 @@ ${result.current_users?.map((u: any) => `・${u.user_id} (${u.kanji_last_name} $
       setInsertResult(`❌ テスト挿入エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setTestingInsert(false)
+    }
+  }
+
+  const handleDebugDB = async () => {
+    setDebuggingDB(true)
+    setDebugDBResult('')
+
+    try {
+      const response = await fetch('/api/debug-db', {
+        method: 'GET'
+      })
+
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text()
+        setDebugDBResult(`❌ サーバーエラー: ${response.status}\n\n${textResponse.substring(0, 1000)}`)
+        return
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        const debug = result.debug_info
+        setDebugDBResult(`🔍 データベースデバッグ結果:
+
+📊 基本情報:
+・接続テスト: ${debug.connection_test}
+・総ユーザー数: ${debug.total_users}
+・挿入テスト: ${debug.insert_test}
+
+👥 ユーザーサンプル:
+${debug.users_sample.map((u: any) => `・${u.user_id} (${u.mail_address}) - パスワード: ${u.has_password}`).join('\n') || '・データなし'}
+
+⚙️ 設定状況:
+・Supabase URL: ${debug.supabase_config.url}
+・Anon Key: ${debug.supabase_config.has_anon_key ? 'あり' : 'なし'}
+・Service Key: ${debug.supabase_config.has_service_key ? 'あり' : 'なし'}
+
+${debug.errors.connection_error || debug.errors.users_error ? `\n❌ エラー:\n・${debug.errors.connection_error || ''}\n・${debug.errors.users_error || ''}` : ''}`)
+      } else {
+        setDebugDBResult(`❌ デバッグエラー: ${result.error}`)
+      }
+
+    } catch (error) {
+      setDebugDBResult(`❌ デバッグ失敗: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setDebuggingDB(false)
     }
   }
 
@@ -421,6 +470,33 @@ ${result.current_users?.map((u: any) => `・${u.user_id} (${u.kanji_last_name} $
           {rlsResult && (
             <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${rlsResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
               {rlsResult}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <FileText className="h-5 w-5 inline mr-2" />
+            完全データベースデバッグ
+          </h3>
+          <p className="text-gray-600 mb-4">
+            データベース接続、データ存在、設定状況を詳細に確認します。
+          </p>
+          <button
+            onClick={handleDebugDB}
+            disabled={debuggingDB}
+            className="bg-pink-600 text-white py-2 px-4 rounded-md hover:bg-pink-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {debuggingDB ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            {debuggingDB ? '詳細デバッグ中...' : '完全データベースデバッグ'}
+          </button>
+          {debugDBResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${debugDBResult.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>
+              {debugDBResult}
             </div>
           )}
         </div>

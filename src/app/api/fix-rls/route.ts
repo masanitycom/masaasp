@@ -3,36 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
-
-    // Execute RLS fix SQL
-    const { error: rlsError } = await supabase.rpc('exec_sql', {
-      sql: `
-        -- Disable RLS temporarily
-        ALTER TABLE users DISABLE ROW LEVEL SECURITY;
-
-        -- Drop existing policies
-        DROP POLICY IF EXISTS "Users can read their own data" ON users;
-        DROP POLICY IF EXISTS "Allow public read for login" ON users;
-
-        -- Create permissive policy for authentication
-        CREATE POLICY "Allow public read for authentication"
-          ON users
-          FOR SELECT
-          USING (true);
-
-        -- Re-enable RLS
-        ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-      `
-    })
-
-    if (rlsError) {
-      console.error('RLS fix error:', rlsError)
-      return NextResponse.json({
-        success: false,
-        error: `RLS修正エラー: ${rlsError.message}`,
-        manual_sql: `
--- Supabaseダッシュボードで以下のSQLを実行してください:
+    // This endpoint provides manual SQL instructions since
+    // we cannot execute arbitrary SQL from serverless functions
+    return NextResponse.json({
+      success: false,
+      error: 'APIからの自動修正はサポートされていません。手動でSQLを実行してください。',
+      manual_sql: `-- Supabaseダッシュボード > SQL Editor で以下を実行:
 
 -- 1. RLSを一時的に無効化
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
@@ -40,22 +16,25 @@ ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 -- 2. 既存のポリシーを削除
 DROP POLICY IF EXISTS "Users can read their own data" ON users;
 DROP POLICY IF EXISTS "Allow public read for login" ON users;
+DROP POLICY IF EXISTS "Allow public read for authentication" ON users;
 
--- 3. 新しいポリシーを作成
+-- 3. password_hashを必須でなくする
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+
+-- 4. 新しいポリシーを作成
 CREATE POLICY "Allow public read for authentication"
   ON users
   FOR SELECT
   USING (true);
 
--- 4. RLSを再有効化
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-        `
-      }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'RLSポリシーが正常に修正されました'
+-- 5. RLSを再有効化
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;`,
+      instructions: [
+        '1. Supabaseダッシュボードにアクセス',
+        '2. 左メニューから「SQL Editor」を選択',
+        '3. 上記のSQLをコピー&ペーストして実行',
+        '4. 実行完了後、ログインを再試行'
+      ]
     })
 
   } catch (error) {

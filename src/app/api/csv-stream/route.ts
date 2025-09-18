@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
             account_type: row.account_type || row['口座種別'] || row['ACCOUNT_TYPE'],
             account_number: row.account_number || row['口座番号'] || row['ACCOUNT_NUMBER'],
             account_holder: row.account_holder || row['口座名義'] || row['ACCOUNT_HOLDER'],
-            password_hash: row.password_hash || row['パスワードハッシュ'] || '',
+            password_hash: row.password_hash || row['パスワードハッシュ'] || 'placeholder_hash',
             system_access_flg: row.system_access_flg !== undefined ? row.system_access_flg : true,
             admin_flg: row.admin_flg !== undefined ? row.admin_flg : false,
             registration_date: row.registration_date || new Date().toISOString(),

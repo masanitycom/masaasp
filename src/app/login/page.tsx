@@ -40,11 +40,12 @@ export default function LoginPage() {
         userEmail = loginId
 
         // Check if user exists in our database with this email
-        const { data: userRecord, error: userError } = await supabase
+        const { data: userRecords, error: userError } = await supabase
           .from('users')
           .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
           .eq('mail_address', loginId)
-          .single()
+
+        const userRecord = userRecords?.[0] // Take first match
 
         if (userError || !userRecord) {
           setError('メールアドレスまたはパスワードが正しくありません')
@@ -56,11 +57,12 @@ export default function LoginPage() {
         userData = userRecord
       } else {
         // Login with user_id
-        const { data: userRecord, error: userError } = await supabase
+        const { data: userRecords, error: userError } = await supabase
           .from('users')
           .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
           .eq('user_id', loginId)
-          .single()
+
+        const userRecord = userRecords?.[0] // Take first match
 
         if (userError || !userRecord) {
           setError('ユーザーIDまたはパスワードが正しくありません')

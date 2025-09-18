@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     console.error('Setup error:', error)
     return NextResponse.json({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     }, { status: 500 })
   }
 }

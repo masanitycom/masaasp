@@ -174,17 +174,9 @@ export default function AdminDashboardPage() {
               <Upload className="h-4 w-4 mr-1" />
               データ管理
             </a>
-            <a href="/dashboard" className="text-gray-300 hover:text-white flex items-center">
-              <Home className="h-4 w-4 mr-1" />
-              通常ダッシュボード
-            </a>
-            <a href="/organization" className="text-gray-300 hover:text-white flex items-center">
+            <a href="#organization-tree" className="text-gray-300 hover:text-white flex items-center">
               <Users className="h-4 w-4 mr-1" />
-              組織管理
-            </a>
-            <a href="/rewards" className="text-gray-300 hover:text-white flex items-center">
-              <DollarSign className="h-4 w-4 mr-1" />
-              報酬管理
+              全体組織図
             </a>
           </div>
         </div>
@@ -328,6 +320,33 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Organization Tree Section */}
+        <div id="organization-tree" className="bg-white rounded-lg shadow mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">全体組織図</h2>
+            <p className="text-sm text-gray-600 mt-1">システム全体の組織構造を表示します</p>
+          </div>
+          <div className="p-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <Users className="h-5 w-5 text-blue-600 mr-2" />
+                <p className="text-sm text-blue-800">
+                  組織図機能は現在開発中です。CSVデータがアップロードされると自動的に組織構造が表示されます。
+                </p>
+              </div>
+              <div className="mt-4">
+                <a
+                  href="/admin"
+                  className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  組織データをアップロード
+                </a>
+              </div>
             </div>
           </div>
         </div>

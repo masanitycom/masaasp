@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { User, CamelLevel } from '@/types/database.types'
-import { Users, TrendingUp, Award, BarChart3, LogOut } from 'lucide-react'
+import { Users, TrendingUp, Award, BarChart3, LogOut, Upload, Building } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()

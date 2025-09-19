@@ -150,8 +150,8 @@ export default function DashboardPage() {
               報酬
             </a>
             {user?.admin_flg && (
-              <a href="/admin" className="text-indigo-100 hover:text-white">
-                管理
+              <a href="/admin" className="text-yellow-300 hover:text-white font-semibold bg-indigo-700 px-3 py-1 rounded-md">
+                ⚙️ 管理画面
               </a>
             )}
           </div>
@@ -160,6 +160,61 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Admin Quick Access Panel */}
+        {user?.admin_flg && (
+          <div className="mb-8 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              ⚙️ 管理者クイックアクセス
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <a
+                href="/admin"
+                className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow border border-yellow-200"
+              >
+                <div className="flex items-center">
+                  <div className="p-2 bg-yellow-100 rounded-lg">
+                    <Upload className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="font-semibold text-gray-900">CSVアップロード</p>
+                    <p className="text-sm text-gray-600">ユーザー・物件データ管理</p>
+                  </div>
+                </div>
+              </a>
+
+              <a
+                href="/admin#users"
+                className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow border border-yellow-200"
+              >
+                <div className="flex items-center">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="font-semibold text-gray-900">ユーザー管理</p>
+                    <p className="text-sm text-gray-600">認証・権限設定</p>
+                  </div>
+                </div>
+              </a>
+
+              <a
+                href="/admin#properties"
+                className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow border border-yellow-200"
+              >
+                <div className="flex items-center">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Building className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="font-semibold text-gray-900">物件管理</p>
+                    <p className="text-sm text-gray-600">ファンド・報酬設定</p>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">

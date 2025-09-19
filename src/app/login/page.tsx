@@ -113,7 +113,13 @@ export default function LoginPage() {
       } else {
         // Login successful
         setDebugInfo(`デバッグ情報: ログイン成功 - ユーザー: ${userData.user_id} (${userEmail})`)
-        router.push('/dashboard')
+
+        // Redirect based on user role
+        if (userData.admin_flg) {
+          router.push('/admin-dashboard')
+        } else {
+          router.push('/dashboard')
+        }
       }
     } catch (err) {
       setError('ログイン中にエラーが発生しました: ' + err)

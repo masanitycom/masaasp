@@ -526,7 +526,7 @@ function OrganizationChart() {
         const level = item.level || 0
         acc[level] = (acc[level] || 0) + 1
         return acc
-      }, {})
+      }, {} as Record<number, number>)
       console.log('Level distribution before deduplication:', levelCounts)
 
       // Remove duplicates by user_id BEFORE building tree
@@ -541,7 +541,7 @@ function OrganizationChart() {
         const level = item.level || 0
         acc[level] = (acc[level] || 0) + 1
         return acc
-      }, {})
+      }, {} as Record<number, number>)
       console.log('Level distribution after deduplication:', uniqueLevelCounts)
 
       // Build tree structure

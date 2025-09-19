@@ -80,7 +80,7 @@ export default function TreeNode({ node, onExpand, depth }: TreeNodeProps) {
         <div className="ml-6">
           {node.children.map((child) => (
             <TreeNode
-              key={child.id}
+              key={child.user_id || child.id}
               node={child}
               onExpand={onExpand}
               depth={depth + 1}

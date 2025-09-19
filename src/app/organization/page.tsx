@@ -42,12 +42,14 @@ export default function OrganizationPage() {
       if (userData) {
         setUser(userData)
 
-        // Fetch user's camel level
-        const { data: userCamel } = await supabase
+        // Fetch user's camel level (handle potential duplicates)
+        const { data: userCamelData } = await supabase
           .from('camel_levels')
           .select('*')
           .eq('user_id', userData.user_id)
-          .single()
+
+        // Take the first record if there are duplicates
+        const userCamel = userCamelData && userCamelData.length > 0 ? userCamelData[0] : null
 
         if (userCamel) {
           // Fetch initial 5 direct children (deduplicated by user_id)
@@ -63,6 +65,12 @@ export default function OrganizationPage() {
             childrenData.filter((item, index, arr) =>
               index === arr.findIndex(t => t.user_id === item.user_id)
             ).slice(0, 5) : []
+
+          console.log('Initial children data:', childrenData?.length || 0, 'records')
+          console.log('After deduplication:', uniqueChildren?.length || 0, 'records')
+          if (childrenData && childrenData.length > 0) {
+            console.log('Sample child data:', childrenData[0])
+          }
 
           setRootNode({
             ...userCamel,
@@ -91,6 +99,9 @@ export default function OrganizationPage() {
         childrenData.filter((item, index, arr) =>
           index === arr.findIndex(t => t.user_id === item.user_id)
         ).slice(0, 5) : []
+
+      console.log(`Loading children for ${userId}:`, childrenData?.length || 0, 'records')
+      console.log('After deduplication:', uniqueChildren?.length || 0, 'records')
 
       if (uniqueChildren && uniqueChildren.length > 0) {
         updateNodeChildren(rootNode, userId, uniqueChildren)

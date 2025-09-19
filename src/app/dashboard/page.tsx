@@ -150,7 +150,7 @@ export default function DashboardPage() {
               報酬
             </a>
             {user?.admin_flg && (
-              <a href="/admin" className="text-yellow-300 hover:text-white font-semibold bg-indigo-700 px-3 py-1 rounded-md">
+              <a href="/admin-dashboard" className="text-yellow-300 hover:text-white font-semibold bg-indigo-700 px-3 py-1 rounded-md">
                 ⚙️ 管理画面
               </a>
             )}
@@ -168,7 +168,7 @@ export default function DashboardPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <a
-                href="/admin"
+                href="/admin-dashboard#csv-upload"
                 className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow border border-yellow-200"
               >
                 <div className="flex items-center">
@@ -183,7 +183,7 @@ export default function DashboardPage() {
               </a>
 
               <a
-                href="/admin#users"
+                href="/admin-dashboard#system-management"
                 className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow border border-yellow-200"
               >
                 <div className="flex items-center">
@@ -191,14 +191,14 @@ export default function DashboardPage() {
                     <Users className="h-6 w-6 text-blue-600" />
                   </div>
                   <div className="ml-3">
-                    <p className="font-semibold text-gray-900">ユーザー管理</p>
+                    <p className="font-semibold text-gray-900">システム管理</p>
                     <p className="text-sm text-gray-600">認証・権限設定</p>
                   </div>
                 </div>
               </a>
 
               <a
-                href="/admin#properties"
+                href="/admin-dashboard#organization-tree"
                 className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow border border-yellow-200"
               >
                 <div className="flex items-center">
@@ -206,8 +206,8 @@ export default function DashboardPage() {
                     <Building className="h-6 w-6 text-green-600" />
                   </div>
                   <div className="ml-3">
-                    <p className="font-semibold text-gray-900">物件管理</p>
-                    <p className="text-sm text-gray-600">ファンド・報酬設定</p>
+                    <p className="font-semibold text-gray-900">組織管理</p>
+                    <p className="text-sm text-gray-600">全体組織図・構造管理</p>
                   </div>
                 </div>
               </a>

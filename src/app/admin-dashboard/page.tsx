@@ -573,105 +573,61 @@ function OrganizationChart() {
     setExpandedNodes(newExpanded)
   }
 
-  const renderNode = (node: any, level = 0, isLast = false, isFirst = false) => {
+  const renderNode = (node: any, level = 0, isLast = false, prefix = '') => {
     const hasChildren = node.children && node.children.length > 0
     const isExpanded = expandedNodes.has(node.user_id)
 
+    // Create the tree line prefix for this level
+    const currentPrefix = level === 0 ? '' : prefix + (isLast ? '└─ ' : '├─ ')
+
     return (
-      <div key={node.user_id} className="relative">
-        {/* Draw connecting lines */}
-        {level > 0 && (
-          <div className="absolute left-0 top-0 h-full w-full pointer-events-none">
-            {/* Vertical line from parent */}
-            {!isFirst && (
-              <div
-                className="absolute bg-gray-300"
-                style={{
-                  left: `${(level - 1) * 40 + 20}px`,
-                  top: '-10px',
-                  width: '1px',
-                  height: '25px'
-                }}
-              />
-            )}
+      <div key={node.user_id} className="font-mono">
+        <div className="flex items-center py-1 hover:bg-blue-50 group">
+          {/* Tree structure text */}
+          <div className="flex items-center">
+            <span className="text-gray-400 text-sm mr-2 whitespace-pre">
+              {currentPrefix}
+            </span>
 
-            {/* Horizontal line to node */}
-            <div
-              className="absolute bg-gray-300"
-              style={{
-                left: `${(level - 1) * 40 + 20}px`,
-                top: '15px',
-                width: '20px',
-                height: '1px'
-              }}
-            />
-
-            {/* Vertical line continuing down */}
-            {!isLast && (
-              <div
-                className="absolute bg-gray-300"
-                style={{
-                  left: `${(level - 1) * 40 + 20}px`,
-                  top: '15px',
-                  width: '1px',
-                  height: '100%'
-                }}
-              />
+            {/* Expand/collapse button */}
+            {hasChildren && (
+              <button
+                onClick={() => toggleNode(node.user_id)}
+                className="w-4 h-4 flex items-center justify-center text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded text-xs font-bold mr-1"
+              >
+                {isExpanded ? '−' : '+'}
+              </button>
             )}
           </div>
-        )}
 
-        {/* Node content */}
-        <div
-          className="flex items-center py-2 px-4 hover:bg-gray-50 group relative z-10"
-          style={{ marginLeft: `${level * 40}px` }}
-        >
-          {/* Expand/collapse button */}
-          {hasChildren && (
-            <button
-              onClick={() => toggleNode(node.user_id)}
-              className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-full mr-2 border border-gray-300 bg-white text-xs font-bold"
-            >
-              {isExpanded ? '−' : '+'}
-            </button>
-          )}
-
-          {/* User card */}
-          <div className="flex items-center bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow min-w-0 flex-1">
-            {/* User avatar */}
-            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold mr-3 shadow-md flex-shrink-0">
-              {node.user?.kanji_last_name?.charAt(0) || node.user_id.charAt(0)}
+          {/* User info */}
+          <div className="flex items-center space-x-2 flex-1 font-sans">
+            <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+              {node.user?.kanji_last_name?.charAt(0) || node.user_id?.charAt(0) || 'U'}
             </div>
 
-            {/* User info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2 mb-1">
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {node.user?.kanji_last_name} {node.user?.kanji_first_name}
-                </p>
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full whitespace-nowrap">
-                  Lv.{node.level || node.depth_level || 0}
+            <div className="flex-1">
+              <span className="text-sm font-medium text-gray-900">
+                {node.user?.kanji_last_name || 'Unknown'} {node.user?.kanji_first_name || ''}
+              </span>
+              <span className="ml-2 text-xs text-gray-500">
+                ({node.user_id})
+              </span>
+              {hasChildren && (
+                <span className="ml-2 text-xs text-green-600 font-medium">
+                  [{node.children.length}人]
                 </span>
-              </div>
-
-              <div className="flex items-center space-x-3 text-xs text-gray-500">
-                <span>ID: {node.user_id}</span>
-                {node.upline && (
-                  <span className="text-orange-600">↑ {node.upline}</span>
-                )}
-                {hasChildren && (
-                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                    ↓ {node.children.length}人
-                  </span>
-                )}
-              </div>
+              )}
+              <span className="ml-2 text-xs text-blue-600">
+                Lv.{node.level || node.depth_level || 0}
+              </span>
             </div>
 
-            {/* Actions */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+            {/* Quick info on hover */}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                onClick={() => alert(`${node.user?.kanji_last_name} ${node.user?.kanji_first_name}\n\nID: ${node.user_id}\nLevel: ${node.level || node.depth_level}\n紹介者: ${node.upline || 'なし'}\n直接紹介数: ${hasChildren ? node.children.length : 0}人`)}
-                className="text-gray-400 hover:text-indigo-600 text-xs px-2 py-1 rounded hover:bg-indigo-50"
+                onClick={() => alert(`【詳細情報】\n\n氏名: ${node.user?.kanji_last_name} ${node.user?.kanji_first_name}\nID: ${node.user_id}\nLevel: ${node.level || node.depth_level || 0}\n紹介者: ${node.upline || 'なし'}\n直接紹介: ${hasChildren ? node.children.length : 0}人`)}
+                className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50"
               >
                 詳細
               </button>
@@ -679,17 +635,14 @@ function OrganizationChart() {
           </div>
         </div>
 
-        {/* Children - only render if expanded */}
+        {/* Children */}
         {hasChildren && isExpanded && (
-          <div className="relative">
-            {node.children.map((child: any, index: number) =>
-              renderNode(
-                child,
-                level + 1,
-                index === node.children.length - 1, // isLast
-                index === 0 // isFirst
-              )
-            )}
+          <div>
+            {node.children.map((child: any, index: number) => {
+              const isChildLast = index === node.children.length - 1
+              const childPrefix = level === 0 ? '' : prefix + (isLast ? '   ' : '│  ')
+              return renderNode(child, level + 1, isChildLast, childPrefix)
+            })}
           </div>
         )}
       </div>
@@ -785,7 +738,7 @@ function OrganizationChart() {
       <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
         <div className="max-h-96 overflow-y-auto p-4">
           <div className="space-y-2">
-            {orgData.map((node, index) => renderNode(node, 0, index === orgData.length - 1, index === 0))}
+            {orgData.map((node, index) => renderNode(node, 0, index === orgData.length - 1, ''))}
           </div>
         </div>
       </div>

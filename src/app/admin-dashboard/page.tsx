@@ -467,40 +467,66 @@ function OrganizationChart() {
 
   const fetchOrganizationData = async () => {
     try {
+      console.log('Fetching organization data...')
+
+      // First, check if camel_levels table has any data
+      const { data: camelCount, error: countError } = await supabase
+        .from('camel_levels')
+        .select('user_id', { count: 'exact', head: true })
+
+      console.log('Camel levels count:', camelCount, 'Count error:', countError)
+
       // Fetch organization structure with user details
       const { data: camelData, error: camelError } = await supabase
         .from('camel_levels')
         .select(`
-          *,
-          user:users!inner(user_id, kanji_last_name, kanji_first_name, mail_address)
+          user_id,
+          level,
+          pos,
+          upline,
+          depth_level,
+          users!inner(user_id, kanji_last_name, kanji_first_name, mail_address)
         `)
         .order('depth_level', { ascending: true })
         .order('pos', { ascending: true })
 
+      console.log('Camel data:', camelData, 'Camel error:', camelError)
+
       if (camelError) throw camelError
 
+      if (!camelData || camelData.length === 0) {
+        setError('組織階層データがありません。CSVファイルをアップロードしてください。')
+        return
+      }
+
       // Build tree structure
-      const tree = buildOrganizationTree(camelData || [])
+      const tree = buildOrganizationTree(camelData)
+      console.log('Built tree:', tree)
       setOrgData(tree)
     } catch (err) {
       console.error('Error fetching organization data:', err)
-      setError('組織データの読み込みに失敗しました')
+      setError(`組織データの読み込みに失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
   }
 
   const buildOrganizationTree = (data: any[]) => {
+    console.log('Building organization tree with data:', data.length, 'items')
     const nodeMap = new Map()
     const rootNodes: any[] = []
 
     // Create node map
-    data.forEach(item => {
+    data.forEach((item, index) => {
+      console.log(`Item ${index}:`, item)
       nodeMap.set(item.user_id, {
         ...item,
+        user: item.users, // Map the joined user data
         children: []
       })
     })
+
+    console.log('Node map created with', nodeMap.size, 'entries')
 
     // Build tree structure
     data.forEach(item => {
@@ -509,9 +535,11 @@ function OrganizationChart() {
         nodeMap.get(item.upline).children.push(node)
       } else {
         rootNodes.push(node)
+        console.log('Root node found:', item.user_id)
       }
     })
 
+    console.log('Tree built with', rootNodes.length, 'root nodes')
     return rootNodes
   }
 
@@ -709,6 +737,43 @@ function CSVUploadGrid() {
 function SystemManagementSection() {
   const [authSetupResult, setAuthSetupResult] = useState('')
   const [setupLoading, setSetupLoading] = useState(false)
+  const [debugResult, setDebugResult] = useState('')
+  const [debugLoading, setDebugLoading] = useState(false)
+
+  const handleDebugTables = async () => {
+    setDebugLoading(true)
+    setDebugResult('')
+
+    try {
+      const response = await fetch('/api/debug-tables')
+      const result = await response.json()
+
+      if (result.success) {
+        setDebugResult(`📊 データベーステーブル状況:
+
+👥 users テーブル:
+・件数: ${result.tables.users.count || 0}件
+・エラー: ${result.tables.users.error || 'なし'}
+・サンプル: ${result.tables.users.sample?.length || 0}件
+
+🏗️ camel_levels テーブル:
+・件数: ${result.tables.camel_levels.count || 0}件
+・エラー: ${result.tables.camel_levels.error || 'なし'}
+・サンプル: ${result.tables.camel_levels.sample?.length || 0}件
+
+💰 investment_history テーブル:
+・件数: ${result.tables.investment_history.count || 0}件
+・エラー: ${result.tables.investment_history.error || 'なし'}
+・サンプル: ${result.tables.investment_history.sample?.length || 0}件`)
+      } else {
+        setDebugResult(`❌ デバッグエラー: ${result.error}`)
+      }
+    } catch (error) {
+      setDebugResult(`❌ デバッグ失敗: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setDebugLoading(false)
+    }
+  }
 
   const handleAuthSetup = async () => {
     setSetupLoading(true)
@@ -746,29 +811,56 @@ function SystemManagementSection() {
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4">
-      <h3 className="font-medium text-gray-900 mb-2">認証システム初期化</h3>
-      <p className="text-sm text-gray-600 mb-4">
-        ログインに問題がある場合、認証システムを初期化してテストアカウントを作成します。
-      </p>
-      <button
-        onClick={handleAuthSetup}
-        disabled={setupLoading}
-        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-      >
-        {setupLoading ? (
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-        ) : (
-          <Shield className="h-4 w-4 mr-2" />
-        )}
-        認証システム初期化
-      </button>
+    <div className="space-y-4">
+      <div className="border border-gray-200 rounded-lg p-4">
+        <h3 className="font-medium text-gray-900 mb-2">認証システム初期化</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          ログインに問題がある場合、認証システムを初期化してテストアカウントを作成します。
+        </p>
+        <button
+          onClick={handleAuthSetup}
+          disabled={setupLoading}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+        >
+          {setupLoading ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+          ) : (
+            <Shield className="h-4 w-4 mr-2" />
+          )}
+          認証システム初期化
+        </button>
 
-      {authSetupResult && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <pre className="text-sm text-gray-800 whitespace-pre-wrap">{authSetupResult}</pre>
-        </div>
-      )}
+        {authSetupResult && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <pre className="text-sm text-gray-800 whitespace-pre-wrap">{authSetupResult}</pre>
+          </div>
+        )}
+      </div>
+
+      <div className="border border-gray-200 rounded-lg p-4">
+        <h3 className="font-medium text-gray-900 mb-2">データベース状況確認</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          アップロードされたデータの状況を確認して、組織図表示の問題を診断します。
+        </p>
+        <button
+          onClick={handleDebugTables}
+          disabled={debugLoading}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+        >
+          {debugLoading ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+          ) : (
+            <Database className="h-4 w-4 mr-2" />
+          )}
+          データベース状況確認
+        </button>
+
+        {debugResult && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <pre className="text-sm text-gray-800 whitespace-pre-wrap">{debugResult}</pre>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

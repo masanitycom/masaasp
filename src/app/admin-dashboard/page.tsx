@@ -39,11 +39,18 @@ export default function AdminDashboardPage() {
     }
 
     // Check admin privileges
-    const { data: userData } = await supabase
+    const { data: userRecords, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('mail_address', user.email)
-      .single()
+
+    const userData = userRecords?.[0] // Take first match
+
+    if (userError || !userData) {
+      console.error('Error fetching user data:', userError)
+      router.push('/login')
+      return
+    }
 
     if (!userData?.admin_flg) {
       router.push('/dashboard') // Redirect to normal dashboard

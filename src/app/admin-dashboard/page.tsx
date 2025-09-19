@@ -469,24 +469,10 @@ function OrganizationChart() {
     try {
       console.log('Fetching organization data...')
 
-      // First, check if camel_levels table has any data
-      const { data: camelCount, error: countError } = await supabase
-        .from('camel_levels')
-        .select('user_id', { count: 'exact', head: true })
-
-      console.log('Camel levels count:', camelCount, 'Count error:', countError)
-
-      // Fetch organization structure with user details
+      // Fetch camel_levels data
       const { data: camelData, error: camelError } = await supabase
         .from('camel_levels')
-        .select(`
-          user_id,
-          level,
-          pos,
-          upline,
-          depth_level,
-          users!inner(user_id, kanji_last_name, kanji_first_name, mail_address)
-        `)
+        .select('user_id, level, pos, upline, depth_level')
         .order('depth_level', { ascending: true })
         .order('pos', { ascending: true })
 
@@ -499,8 +485,40 @@ function OrganizationChart() {
         return
       }
 
+      // Get all user_ids from camel_levels
+      const userIds = camelData.map(item => item.user_id)
+
+      // Fetch user details separately
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('user_id, kanji_last_name, kanji_first_name, mail_address')
+        .in('user_id', userIds)
+
+      console.log('Users data:', usersData, 'Users error:', usersError)
+
+      if (usersError) throw usersError
+
+      // Create user lookup map
+      const userMap = new Map()
+      usersData?.forEach(user => {
+        userMap.set(user.user_id, user)
+      })
+
+      // Combine camel_levels with user data
+      const combinedData = camelData.map(camel => ({
+        ...camel,
+        user: userMap.get(camel.user_id) || {
+          user_id: camel.user_id,
+          kanji_last_name: 'Unknown',
+          kanji_first_name: 'User',
+          mail_address: ''
+        }
+      }))
+
+      console.log('Combined data:', combinedData.slice(0, 3))
+
       // Build tree structure
-      const tree = buildOrganizationTree(camelData)
+      const tree = buildOrganizationTree(combinedData)
       console.log('Built tree:', tree)
       setOrgData(tree)
     } catch (err) {
@@ -521,7 +539,6 @@ function OrganizationChart() {
       console.log(`Item ${index}:`, item)
       nodeMap.set(item.user_id, {
         ...item,
-        user: item.users, // Map the joined user data
         children: []
       })
     })

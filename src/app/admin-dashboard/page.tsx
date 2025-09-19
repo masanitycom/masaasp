@@ -474,10 +474,9 @@ function OrganizationChart() {
       const { data: camelData, error: camelError } = await supabase
         .from('camel_levels')
         .select('user_id, level, pos, upline, depth_level')
-        .order('depth_level', { ascending: true })
         .order('level', { ascending: true })
         .order('user_id', { ascending: true })
-        // Remove limit to fetch all data
+        // Fetch ALL data without any limits to ensure we get deeper hierarchy levels
 
       console.log('Camel data:', camelData, 'Camel error:', camelError)
 
@@ -528,6 +527,22 @@ function OrganizationChart() {
         return acc
       }, {} as Record<number, number>)
       console.log('Level distribution before deduplication:', levelCounts)
+
+      // Check maximum level in data
+      const maxLevel = Math.max(...combinedData.map(item => item.level || 0))
+      console.log('Maximum level found in data:', maxLevel)
+
+      // Show some examples of higher level users if they exist
+      const higherLevelUsers = combinedData.filter(item => (item.level || 0) >= 2)
+      if (higherLevelUsers.length > 0) {
+        console.log('Level 2+ users sample:', higherLevelUsers.slice(0, 10).map(u => ({
+          user_id: u.user_id,
+          level: u.level,
+          upline: u.upline
+        })))
+      } else {
+        console.log('No Level 2+ users found in raw data')
+      }
 
       // Remove duplicates by user_id BEFORE building tree
       const uniqueData = combinedData.filter((item, index, arr) =>

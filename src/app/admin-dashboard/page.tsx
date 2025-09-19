@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Users, Upload, Building, TrendingUp, Settings, LogOut,
   BarChart3, FileText, AlertCircle, Database, DollarSign,
-  Activity, Home, Shield, User, UserCheck
+  Activity, Home, Shield, User, UserCheck, CircleUser
 } from 'lucide-react'
 
 export default function AdminDashboardPage() {
@@ -647,8 +647,8 @@ function OrganizationChart() {
 
           {/* User info */}
           <div className="flex items-center space-x-2 flex-1 font-sans">
-            <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-              {node.user?.kanji_last_name?.charAt(0) || node.user_id?.charAt(0) || 'U'}
+            <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center">
+              <CircleUser className="h-4 w-4 text-indigo-600" />
             </div>
 
             <div className="flex-1">

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Users, Upload, Building, TrendingUp, Settings, LogOut,
   BarChart3, FileText, AlertCircle, Database, DollarSign,
-  Activity, Home, Shield
+  Activity, Home, Shield, User, UserCheck
 } from 'lucide-react'
 
 export default function AdminDashboardPage() {
@@ -521,8 +521,15 @@ function OrganizationChart() {
       console.log('Combined data sample:', combinedData.slice(0, 3))
       console.log('Total combined data length:', combinedData.length)
 
+      // Remove duplicates by user_id BEFORE building tree
+      const uniqueData = combinedData.filter((item, index, arr) =>
+        arr.findIndex(t => t.user_id === item.user_id) === index
+      )
+
+      console.log('Removed duplicates:', combinedData.length, '->', uniqueData.length)
+
       // Build tree structure
-      const tree = buildOrganizationTree(combinedData)
+      const tree = buildOrganizationTree(uniqueData)
       console.log('Built tree with root nodes:', tree.length)
       console.log('Total members in tree:', tree.reduce((total, node) => total + countTotalMembers(node), 0))
       setOrgData(tree)
@@ -539,9 +546,11 @@ function OrganizationChart() {
     const nodeMap = new Map()
     const rootNodes: any[] = []
 
-    // Create node map
+    // Create node map (data should already be deduplicated)
     data.forEach((item, index) => {
-      console.log(`Item ${index}:`, item)
+      if (index < 10) { // Only log first 10 items to avoid console spam
+        console.log(`Item ${index}:`, item)
+      }
       nodeMap.set(item.user_id, {
         ...item,
         children: [],

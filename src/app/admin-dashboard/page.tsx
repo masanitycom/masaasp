@@ -565,10 +565,10 @@ function OrganizationChart() {
       const node = nodeMap.get(item.user_id)
 
       if (item.upline && item.upline.trim() !== '') {
-        // Parse upline field - it may contain multiple user IDs like "c44111031-c87639296"
-        // The direct parent should be the last user_id in the chain
+        // Parse upline field - it may contain multiple user IDs like "c44111031-c00156202"
+        // The direct parent should be the first user_id in the chain (before the hyphen)
         const uplineChain = item.upline.split('-')
-        const directParentId = uplineChain[uplineChain.length - 1]
+        const directParentId = uplineChain[0]
 
         console.log(`User ${item.user_id} upline chain:`, uplineChain, 'direct parent:', directParentId)
 

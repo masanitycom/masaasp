@@ -283,7 +283,7 @@ export default function AdminDashboardPage() {
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <a
-                href="/admin"
+                href="#csv-upload"
                 className="p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
               >
                 <div className="flex items-center">
@@ -298,7 +298,7 @@ export default function AdminDashboardPage() {
               </a>
 
               <a
-                href="/admin#auth"
+                href="#system-management"
                 className="p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
               >
                 <div className="flex items-center">
@@ -306,14 +306,14 @@ export default function AdminDashboardPage() {
                     <Users className="h-6 w-6 text-blue-600" />
                   </div>
                   <div className="ml-3">
-                    <p className="font-semibold text-gray-900">認証管理</p>
-                    <p className="text-sm text-gray-600">ログイン権限・アクセス制御</p>
+                    <p className="font-semibold text-gray-900">システム管理</p>
+                    <p className="text-sm text-gray-600">認証システム・権限管理</p>
                   </div>
                 </div>
               </a>
 
               <a
-                href="/admin#database"
+                href="#organization-tree"
                 className="p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
               >
                 <div className="flex items-center">
@@ -321,8 +321,8 @@ export default function AdminDashboardPage() {
                     <Database className="h-6 w-6 text-green-600" />
                   </div>
                   <div className="ml-3">
-                    <p className="font-semibold text-gray-900">データベース管理</p>
-                    <p className="text-sm text-gray-600">データ整合性チェック</p>
+                    <p className="font-semibold text-gray-900">組織管理</p>
+                    <p className="text-sm text-gray-600">全体組織図・構造管理</p>
                   </div>
                 </div>
               </a>

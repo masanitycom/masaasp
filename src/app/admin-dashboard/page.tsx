@@ -619,7 +619,7 @@ function OrganizationChart() {
     // Log root node details
     rootNodes.forEach((root, index) => {
       console.log(`Root ${index}: ${root.user_id} with ${root.children.length} direct children`)
-      console.log(`Root ${index} children preview:`, root.children.slice(0, 5).map(c => `${c.user_id}(Lv${c.level})`))
+      console.log(`Root ${index} children preview:`, root.children.slice(0, 5).map((c: any) => `${c.user_id}(Lv${c.level})`))
     })
 
     return rootNodes

@@ -333,6 +333,8 @@ export default function AdminPage() {
   const [fixingDuplicates, setFixingDuplicates] = useState(false)
   const [duplicateFixResult, setDuplicateFixResult] = useState<string>('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [fixingAuth, setFixingAuth] = useState(false)
+  const [authFixResult, setAuthFixResult] = useState<string>('')
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -563,6 +565,72 @@ ${result.details.note}
     }
   }
 
+  const handleFixAuth = async () => {
+    setFixingAuth(true)
+    setAuthFixResult('')
+
+    try {
+      setAuthFixResult('🔧 緊急認証修復中...\n・TEST001ユーザーを強制作成します')
+
+      const response = await fetch('/api/force-create-auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: 'test@masaasp.com',
+          password: 'test123',
+          user_id: 'TEST001',
+          name: 'テスト 太郎'
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setAuthFixResult(`✅ 認証修復成功！
+
+🔑 ログイン情報:
+・メール: ${result.credentials.email}
+・パスワード: ${result.credentials.password}
+・ユーザーID: ${result.credentials.user_id}
+
+📊 認証ユーザー情報:
+・Auth ID: ${result.auth_user.id}
+・確認済み: ${result.auth_user.confirmed ? 'はい' : 'いいえ'}
+・作成日: ${result.auth_user.created_at}
+
+🧪 ログインテスト結果:
+${result.login_test}
+
+💡 今すぐログインできます！
+https://masaasp.vercel.app/login`)
+      } else {
+        setAuthFixResult(`❌ 認証修復失敗: ${result.error}
+
+📝 詳細情報:
+${result.details ? JSON.stringify(result.details, null, 2) : 'なし'}
+
+🔧 対処法:
+1. Supabaseダッシュボードで手動確認
+2. 環境変数を確認
+3. サービスロールキーの権限確認`)
+      }
+
+    } catch (error) {
+      setAuthFixResult(`❌ 認証修復エラー: ${error instanceof Error ? error.message : 'Unknown error'}
+
+🔧 手動での対処法:
+1. Supabaseダッシュボードにアクセス
+2. Authentication > Users
+3. 手動でユーザー作成
+4. メール: test@masaasp.com
+5. パスワード: test123`)
+    } finally {
+      setFixingAuth(false)
+    }
+  }
+
   const handleCreateTestUser = async () => {
     setCreatingTestUser(true)
     setTestUserResult('')
@@ -677,6 +745,34 @@ ${result.login_instructions.map((step: string) => `${step}`).join('\n')}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Emergency Auth Fix Section */}
+        <div className="mb-8 bg-red-50 border-2 border-red-300 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-red-900 mb-4">
+            🚨 緊急：ログイン認証修復
+          </h3>
+          <p className="text-red-700 mb-4">
+            <strong>「Invalid login credentials」エラーが発生している場合</strong><br />
+            Supabase認証システムにユーザーが存在しません。緊急修復を実行してください。
+          </p>
+          <button
+            onClick={handleFixAuth}
+            disabled={fixingAuth}
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+          >
+            {fixingAuth ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+            ) : (
+              <Settings className="h-4 w-4 mr-2" />
+            )}
+            {fixingAuth ? '修復中...' : '🚨 緊急認証修復'}
+          </button>
+          {authFixResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${authFixResult.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+              {authFixResult}
+            </div>
+          )}
+        </div>
+
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">CSVデータアップロード</h2>
           <p className="text-gray-600">

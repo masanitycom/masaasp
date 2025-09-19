@@ -630,8 +630,10 @@ function OrganizationChart() {
     const newExpanded = new Set(expandedNodes)
     if (newExpanded.has(userId)) {
       newExpanded.delete(userId)
+      console.log(`Collapsed node: ${userId}`)
     } else {
       newExpanded.add(userId)
+      console.log(`Expanded node: ${userId}`)
     }
     setExpandedNodes(newExpanded)
   }
@@ -639,6 +641,11 @@ function OrganizationChart() {
   const renderNode = (node: any, level = 0, isLast = false, prefix = '') => {
     const hasChildren = node.children && node.children.length > 0
     const isExpanded = expandedNodes.has(node.user_id)
+
+    // Debug logging for root node
+    if (level === 0 && hasChildren) {
+      console.log(`Rendering root node ${node.user_id}: ${node.children.length} children, expanded: ${isExpanded}`)
+    }
 
     // Create the tree line prefix for this level
     const currentPrefix = level === 0 ? '' : prefix + (isLast ? '└─ ' : '├─ ')
@@ -706,6 +713,11 @@ function OrganizationChart() {
               const childPrefix = level === 0 ? '' : prefix + (isLast ? '   ' : '│  ')
               return renderNode(child, level + 1, isChildLast, childPrefix)
             })}
+            {node.children.length > 50 && (
+              <div className="ml-6 text-xs text-gray-500 italic">
+                ※ {node.children.length}人全員を表示中
+              </div>
+            )}
           </div>
         )}
       </div>

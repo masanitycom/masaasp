@@ -349,23 +349,7 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-gray-600 mt-1">システム全体の組織構造を表示します</p>
           </div>
           <div className="p-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <Users className="h-5 w-5 text-blue-600 mr-2" />
-                <p className="text-sm text-blue-800">
-                  組織図機能は現在開発中です。CSVデータがアップロードされると自動的に組織構造が表示されます。
-                </p>
-              </div>
-              <div className="mt-4">
-                <a
-                  href="#csv-upload"
-                  className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  組織データをアップロード
-                </a>
-              </div>
-            </div>
+            <OrganizationChart />
           </div>
         </div>
 
@@ -434,6 +418,233 @@ export default function AdminDashboardPage() {
       </main>
     </div>
   )
+}
+
+function OrganizationChart() {
+  const [orgData, setOrgData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const supabase = createClient()
+
+  useEffect(() => {
+    fetchOrganizationData()
+  }, [])
+
+  const fetchOrganizationData = async () => {
+    try {
+      // Fetch organization structure with user details
+      const { data: camelData, error: camelError } = await supabase
+        .from('camel_levels')
+        .select(`
+          *,
+          user:users!inner(user_id, kanji_last_name, kanji_first_name, mail_address)
+        `)
+        .order('depth_level', { ascending: true })
+        .order('pos', { ascending: true })
+
+      if (camelError) throw camelError
+
+      // Build tree structure
+      const tree = buildOrganizationTree(camelData || [])
+      setOrgData(tree)
+    } catch (err) {
+      console.error('Error fetching organization data:', err)
+      setError('組織データの読み込みに失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const buildOrganizationTree = (data: any[]) => {
+    const nodeMap = new Map()
+    const rootNodes: any[] = []
+
+    // Create node map
+    data.forEach(item => {
+      nodeMap.set(item.user_id, {
+        ...item,
+        children: []
+      })
+    })
+
+    // Build tree structure
+    data.forEach(item => {
+      const node = nodeMap.get(item.user_id)
+      if (item.upline && nodeMap.has(item.upline)) {
+        nodeMap.get(item.upline).children.push(node)
+      } else {
+        rootNodes.push(node)
+      }
+    })
+
+    return rootNodes
+  }
+
+  const toggleNode = (userId: string) => {
+    const newExpanded = new Set(expandedNodes)
+    if (newExpanded.has(userId)) {
+      newExpanded.delete(userId)
+    } else {
+      newExpanded.add(userId)
+    }
+    setExpandedNodes(newExpanded)
+  }
+
+  const renderNode = (node: any, level = 0) => {
+    const hasChildren = node.children && node.children.length > 0
+    const isExpanded = expandedNodes.has(node.user_id)
+    const indentStyle = { paddingLeft: `${level * 20}px` }
+
+    return (
+      <div key={node.user_id} className="border-l border-gray-200">
+        <div
+          className="flex items-center py-2 px-4 hover:bg-gray-50 cursor-pointer"
+          style={indentStyle}
+          onClick={() => hasChildren && toggleNode(node.user_id)}
+        >
+          <div className="flex items-center flex-1">
+            {hasChildren && (
+              <div className="mr-2 text-gray-400">
+                {isExpanded ? '▼' : '▶'}
+              </div>
+            )}
+            {!hasChildren && <div className="w-4 mr-2" />}
+
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-medium text-indigo-600 mr-3">
+                {node.user?.kanji_last_name?.charAt(0) || node.user_id.charAt(0)}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {node.user?.kanji_last_name} {node.user?.kanji_first_name}
+                </p>
+                <p className="text-xs text-gray-500">
+                  ID: {node.user_id} | Level: {node.depth_level} | Pos: {node.pos}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-400">
+            {hasChildren && `${node.children.length}人`}
+          </div>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="ml-4">
+            {node.children.map((child: any) => renderNode(child, level + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <span className="ml-2 text-gray-600">組織データを読み込み中...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="flex items-center">
+          <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+        <div className="mt-4">
+          <a
+            href="#csv-upload"
+            className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            組織データをアップロード
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  if (orgData.length === 0) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center">
+          <Users className="h-5 w-5 text-blue-600 mr-2" />
+          <p className="text-sm text-blue-800">
+            組織データがありません。CSVファイルをアップロードして組織構造を作成してください。
+          </p>
+        </div>
+        <div className="mt-4">
+          <a
+            href="#csv-upload"
+            className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            組織データをアップロード
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <p className="text-sm text-gray-600">
+            総メンバー数: {orgData.reduce((total, node) => total + countTotalMembers(node), 0)}人
+          </p>
+          <button
+            onClick={() => setExpandedNodes(new Set(getAllUserIds(orgData)))}
+            className="text-sm text-indigo-600 hover:text-indigo-700"
+          >
+            すべて展開
+          </button>
+          <button
+            onClick={() => setExpandedNodes(new Set())}
+            className="text-sm text-indigo-600 hover:text-indigo-700"
+          >
+            すべて折りたたみ
+          </button>
+        </div>
+        <button
+          onClick={fetchOrganizationData}
+          className="text-sm text-gray-500 hover:text-gray-700"
+        >
+          🔄 更新
+        </button>
+      </div>
+
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="max-h-96 overflow-y-auto">
+          {orgData.map(node => renderNode(node))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const countTotalMembers = (node: any): number => {
+  let count = 1
+  if (node.children) {
+    count += node.children.reduce((total: number, child: any) => total + countTotalMembers(child), 0)
+  }
+  return count
+}
+
+const getAllUserIds = (nodes: any[]): string[] => {
+  let ids: string[] = []
+  nodes.forEach(node => {
+    ids.push(node.user_id)
+    if (node.children) {
+      ids = ids.concat(getAllUserIds(node.children))
+    }
+  })
+  return ids
 }
 
 function CSVUploadGrid() {

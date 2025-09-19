@@ -476,15 +476,23 @@ function OrganizationChart() {
         .select('user_id, level, pos, upline, depth_level')
         .order('level', { ascending: true })
         .order('user_id', { ascending: true })
-        // Fetch ALL data without any limits to ensure we get deeper hierarchy levels
+        .limit(50000) // Set high limit to fetch all 20k+ records
 
-      console.log('Camel data:', camelData, 'Camel error:', camelError)
+      console.log('Camel data count:', camelData?.length || 0, 'Camel error:', camelError)
+      console.log('Expected ~20,000 records, got:', camelData?.length || 0)
 
-      if (camelError) throw camelError
+      if (camelError) {
+        console.error('Camel data fetch error:', camelError)
+        throw camelError
+      }
 
       if (!camelData || camelData.length === 0) {
         setError('組織階層データがありません。CSVファイルをアップロードしてください。')
         return
+      }
+
+      if (camelData.length < 10000) {
+        console.warn('Warning: Only got', camelData.length, 'records. Expected ~20,000. Data may be limited.')
       }
 
       // Get all user_ids from camel_levels
@@ -495,6 +503,7 @@ function OrganizationChart() {
         .from('users')
         .select('user_id, kanji_last_name, kanji_first_name, mail_address')
         .in('user_id', userIds)
+        .limit(50000) // Set high limit to match camel_levels data
 
       console.log('Users data:', usersData, 'Users error:', usersError)
 

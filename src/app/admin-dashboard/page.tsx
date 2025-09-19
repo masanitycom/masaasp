@@ -470,11 +470,13 @@ function OrganizationChart() {
       console.log('Fetching organization data...')
 
       // Fetch camel_levels data with reasonable limit for performance
+      // Sort by depth_level first to build tree from top to bottom
       const { data: camelData, error: camelError } = await supabase
         .from('camel_levels')
         .select('user_id, level, pos, upline, depth_level')
         .order('depth_level', { ascending: true })
-        .order('pos', { ascending: true })
+        .order('level', { ascending: true })
+        .order('user_id', { ascending: true })
         .limit(5000) // Increased limit for better data representation
 
       console.log('Camel data:', camelData, 'Camel error:', camelError)
@@ -542,7 +544,8 @@ function OrganizationChart() {
       console.log(`Item ${index}:`, item)
       nodeMap.set(item.user_id, {
         ...item,
-        children: []
+        children: [],
+        direct_children_count: 0
       })
     })
 
@@ -551,16 +554,49 @@ function OrganizationChart() {
     // Build tree structure
     data.forEach(item => {
       const node = nodeMap.get(item.user_id)
-      if (item.upline && nodeMap.has(item.upline)) {
-        nodeMap.get(item.upline).children.push(node)
+
+      if (item.upline && item.upline.trim() !== '') {
+        // Parse upline field - it may contain multiple user IDs like "c44111031-c87639296"
+        // The direct parent should be the last user_id in the chain
+        const uplineChain = item.upline.split('-')
+        const directParentId = uplineChain[uplineChain.length - 1]
+
+        console.log(`User ${item.user_id} upline chain:`, uplineChain, 'direct parent:', directParentId)
+
+        if (nodeMap.has(directParentId)) {
+          const parentNode = nodeMap.get(directParentId)
+          parentNode.children.push(node)
+          parentNode.direct_children_count = parentNode.children.length
+          console.log(`Added ${item.user_id} as child of ${directParentId}`)
+        } else {
+          // Parent not found in current data set, treat as root
+          rootNodes.push(node)
+          console.log('Parent not found, treating as root node:', item.user_id)
+        }
       } else {
+        // No upline means this is a root node
         rootNodes.push(node)
-        console.log('Root node found:', item.user_id)
+        console.log('Root node found (no upline):', item.user_id)
       }
     })
 
     console.log('Tree built with', rootNodes.length, 'root nodes')
+
+    // Log tree structure for debugging
+    rootNodes.forEach((root, index) => {
+      console.log(`Root ${index}: ${root.user_id} with ${root.children.length} direct children`)
+      logTreeStructure(root, 1)
+    })
+
     return rootNodes
+  }
+
+  const logTreeStructure = (node: any, level: number) => {
+    const indent = '  '.repeat(level)
+    console.log(`${indent}├─ ${node.user_id} (${node.children.length} children)`)
+    node.children.forEach((child: any) => {
+      logTreeStructure(child, level + 1)
+    })
   }
 
   const toggleNode = (userId: string) => {

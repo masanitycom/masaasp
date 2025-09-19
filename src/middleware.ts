@@ -31,6 +31,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Skip auth check for public routes
+  if (request.nextUrl.pathname.startsWith('/auth-setup')) {
+    return supabaseResponse
+  }
+
   // Protect authenticated routes
   if (request.nextUrl.pathname.startsWith('/dashboard') ||
       request.nextUrl.pathname.startsWith('/organization') ||

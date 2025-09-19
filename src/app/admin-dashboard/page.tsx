@@ -521,12 +521,28 @@ function OrganizationChart() {
       console.log('Combined data sample:', combinedData.slice(0, 3))
       console.log('Total combined data length:', combinedData.length)
 
+      // Check level distribution
+      const levelCounts = combinedData.reduce((acc, item) => {
+        const level = item.level || 0
+        acc[level] = (acc[level] || 0) + 1
+        return acc
+      }, {})
+      console.log('Level distribution before deduplication:', levelCounts)
+
       // Remove duplicates by user_id BEFORE building tree
       const uniqueData = combinedData.filter((item, index, arr) =>
         arr.findIndex(t => t.user_id === item.user_id) === index
       )
 
       console.log('Removed duplicates:', combinedData.length, '->', uniqueData.length)
+
+      // Check level distribution after deduplication
+      const uniqueLevelCounts = uniqueData.reduce((acc, item) => {
+        const level = item.level || 0
+        acc[level] = (acc[level] || 0) + 1
+        return acc
+      }, {})
+      console.log('Level distribution after deduplication:', uniqueLevelCounts)
 
       // Build tree structure
       const tree = buildOrganizationTree(uniqueData)
@@ -557,6 +573,14 @@ function OrganizationChart() {
         direct_children_count: 0
       })
     })
+
+    // Log some Level 2 examples if they exist
+    const level2Users = data.filter(item => item.level === 2)
+    if (level2Users.length > 0) {
+      console.log('Level 2 users sample:', level2Users.slice(0, 5))
+    } else {
+      console.log('No Level 2 users found in data')
+    }
 
     console.log('Node map created with', nodeMap.size, 'entries')
 

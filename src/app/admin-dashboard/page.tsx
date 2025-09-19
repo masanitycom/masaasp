@@ -715,65 +715,65 @@ function OrganizationChart() {
 
     console.log('Node map created with', nodeMap.size, 'entries')
 
-    // まずレベル0（ルート）のノードを特定
-    const level0Nodes = data.filter(item => !item.upline || item.upline.trim() === '' || item.level === 0)
-    level0Nodes.forEach(item => {
-      const node = nodeMap.get(item.user_id)
-      rootNodes.push(node)
-      console.log('Level 0 (root) node:', item.user_id)
-    })
-
-    // レベル順にソートして親子関係を構築
+    // Build tree structure - レベル順に処理
     const sortedData = [...data].sort((a, b) => (a.level || 0) - (b.level || 0))
+
+    console.log('Building tree from sorted data...')
 
     sortedData.forEach(item => {
       const node = nodeMap.get(item.user_id)
 
-      if (item.upline && item.upline.trim() !== '') {
-        const uplineStr = item.upline.trim()
+      // uplineフィールドの解析
+      // 空またはレベル0 = ルートノード
+      if (!item.upline || item.upline.trim() === '' || item.level === 0) {
+        rootNodes.push(node)
+        console.log(`Root node (Level ${item.level}): ${item.user_id} - ${item.user?.kanji_last_name}`)
+        return
+      }
 
-        // uplineフィールドのパターンを分析
-        let potentialParents = []
+      // uplineが存在する場合
+      const uplineStr = item.upline.trim()
+      let directParentId = null
 
-        // パターン1: 単一のuser_id (例: "c00156202")
-        if (!uplineStr.includes('-')) {
-          potentialParents = [uplineStr]
+      // uplineフィールドのフォーマット：
+      // "c44111031-c87639296" = c44111031（親）の下にc87639296（自分）
+      if (uplineStr.includes('-')) {
+        const parts = uplineStr.split('-')
+        // 最初の部分が親のID
+        directParentId = parts[0]
+
+        // 最後の部分が自分のIDであることを確認
+        const myId = parts[parts.length - 1]
+        if (myId !== item.user_id) {
+          console.warn(`ID mismatch: ${item.user_id} != ${myId} in upline ${uplineStr}`)
         }
-        // パターン2: ハイフン区切り (例: "c44111031-c00156202")
-        else {
-          // ハイフンで分割して、すべての可能性を試す
-          const parts = uplineStr.split('-')
-          // 最後から順に試す（直接の親の可能性が高い順）
-          potentialParents = parts.reverse()
-        }
+      } else {
+        // ハイフンがない場合は、そのまま親のID
+        directParentId = uplineStr
+      }
 
-        // 親を見つける
-        let parentFound = false
-        for (const parentId of potentialParents) {
-          if (nodeMap.has(parentId)) {
-            const parentNode = nodeMap.get(parentId)
-            // 既に追加されていないか確認
-            if (!parentNode.children.some((child: any) => child.user_id === item.user_id)) {
-              parentNode.children.push(node)
-              parentNode.direct_children_count = parentNode.children.length
+      // 親ノードを探して子として追加
+      if (directParentId && nodeMap.has(directParentId)) {
+        const parentNode = nodeMap.get(directParentId)
 
-              if (parentNode.children.length <= 5 || item.level === 2) {
-                console.log(`✓ ${item.user_id} (Lv${item.level}) → parent: ${parentId} (${parentNode.children.length}人目の子)`)
-              }
-            }
-            parentFound = true
-            break
+        // 重複チェック
+        if (!parentNode.children.some((child: any) => child.user_id === item.user_id)) {
+          parentNode.children.push(node)
+          parentNode.direct_children_count = parentNode.children.length
+
+          // ログ出力（最初の数件のみ）
+          if (parentNode.children.length <= 3 || item.level <= 2) {
+            console.log(`✓ ${item.user_id} → 親: ${directParentId} (Level ${item.level}, ${parentNode.children.length}人目の子)`)
           }
         }
+      } else if (directParentId) {
+        // 親が見つからない場合
+        console.warn(`⚠️ Parent not found: ${directParentId} for ${item.user_id} (Level ${item.level})`)
 
-        // 親が見つからなかった場合
-        if (!parentFound && !rootNodes.includes(node)) {
-          console.warn(`⚠️ Parent not found for ${item.user_id} (upline: ${uplineStr})`)
-          // レベル1の場合はルートノードとして扱う
-          if (item.level === 1) {
-            rootNodes.push(node)
-            console.log('Treating Level 1 node as root:', item.user_id)
-          }
+        // レベル1で親が見つからない場合はルートとして扱う
+        if (item.level === 1) {
+          rootNodes.push(node)
+          console.log(`Level 1 orphan as root: ${item.user_id}`)
         }
       }
     })

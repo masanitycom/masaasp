@@ -469,22 +469,39 @@ function OrganizationChart() {
     try {
       console.log('Fetching organization data...')
 
-      // Fetch camel_levels data with reasonable limit for performance
-      // Sort by depth_level first to build tree from top to bottom
-      const { data: camelData, error: camelError } = await supabase
-        .from('camel_levels')
-        .select('user_id, level, pos, upline, depth_level')
-        .order('level', { ascending: true })
-        .order('user_id', { ascending: true })
-        .limit(50000) // Set high limit to fetch all 20k+ records
+      // Fetch ALL camel_levels data using pagination to bypass Supabase's 1000 record limit
+      let allCamelData: any[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
 
-      console.log('Camel data count:', camelData?.length || 0, 'Camel error:', camelError)
-      console.log('Expected ~20,000 records, got:', camelData?.length || 0)
+      console.log('Fetching all camel_levels data with pagination...')
 
-      if (camelError) {
-        console.error('Camel data fetch error:', camelError)
-        throw camelError
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('camel_levels')
+          .select('user_id, level, pos, upline, depth_level')
+          .order('level', { ascending: true })
+          .order('user_id', { ascending: true })
+          .range(from, from + pageSize - 1)
+
+        if (pageError) {
+          console.error('Pagination error at offset', from, ':', pageError)
+          throw pageError
+        }
+
+        if (pageData && pageData.length > 0) {
+          allCamelData = allCamelData.concat(pageData)
+          console.log(`Fetched page ${Math.floor(from / pageSize) + 1}: ${pageData.length} records (total: ${allCamelData.length})`)
+          from += pageSize
+          hasMore = pageData.length === pageSize // Continue if we got a full page
+        } else {
+          hasMore = false
+        }
       }
+
+      console.log('Camel data count:', allCamelData.length, 'Expected ~20,000 records')
+      const camelData = allCamelData
 
       if (!camelData || camelData.length === 0) {
         setError('組織階層データがありません。CSVファイルをアップロードしてください。')
@@ -493,6 +510,8 @@ function OrganizationChart() {
 
       if (camelData.length < 10000) {
         console.warn('Warning: Only got', camelData.length, 'records. Expected ~20,000. Data may be limited.')
+      } else {
+        console.log('✅ Successfully fetched', camelData.length, 'records!')
       }
 
       // Get all user_ids from camel_levels

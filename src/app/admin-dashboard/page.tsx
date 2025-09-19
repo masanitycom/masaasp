@@ -468,6 +468,7 @@ function OrganizationChart() {
   const fetchOrganizationData = async () => {
     try {
       console.log('Fetching organization data...')
+      console.log('開始: 組織データ取得処理')
 
       // Fetch ALL camel_levels data using pagination to bypass Supabase's 1000 record limit
       let allCamelData: any[] = []
@@ -476,6 +477,7 @@ function OrganizationChart() {
       let hasMore = true
 
       console.log('Fetching all camel_levels data with pagination...')
+      console.log('ステップ1: camel_levelsデータのページネーション取得開始')
 
       while (hasMore) {
         const { data: pageData, error: pageError } = await supabase
@@ -514,27 +516,86 @@ function OrganizationChart() {
         console.log('✅ Successfully fetched', camelData.length, 'records!')
       }
 
-      // Get all user_ids from camel_levels
-      const userIds = camelData.map(item => item.user_id)
+      // Get all unique user_ids from camel_levels
+      const userIds = [...new Set(camelData.map(item => item.user_id))]
+      console.log(`ユニークなユーザーID数: ${userIds.length} (元データ: ${camelData.length}件)`)
 
-      // Fetch user details separately
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('user_id, kanji_last_name, kanji_first_name, mail_address')
-        .in('user_id', userIds)
-        .limit(50000) // Set high limit to match camel_levels data
+      // Fetch user details in batches to avoid URL length limits
+      console.log('Fetching user details for', userIds.length, 'users in batches...')
+      console.log('ステップ2: ユーザー詳細データのバッチ取得開始')
+      let allUsersData: any[] = []
+      const chunkSize = 100 // Process 100 user IDs at a time for maximum safety
 
-      console.log('Users data:', usersData, 'Users error:', usersError)
+      for (let i = 0; i < userIds.length; i += chunkSize) {
+        const chunk = userIds.slice(i, i + chunkSize)
+        const batchNumber = Math.floor(i / chunkSize) + 1
+        const totalBatches = Math.ceil(userIds.length / chunkSize)
 
-      if (usersError) throw usersError
+        console.log(`Fetching user batch ${batchNumber}/${totalBatches}: ${chunk.length} users (${i + 1}-${Math.min(i + chunkSize, userIds.length)} of ${userIds.length})`)
+
+        // Retry logic for failed requests
+        let retries = 3
+        let batchData = null
+        let lastError = null
+
+        while (retries > 0) {
+          try {
+            const { data, error } = await supabase
+              .from('users')
+              .select('user_id, kanji_last_name, kanji_first_name, mail_address')
+              .in('user_id', chunk)
+
+            if (error) {
+              throw error
+            }
+
+            batchData = data
+            break // Success, exit retry loop
+          } catch (error) {
+            lastError = error
+            retries--
+            console.warn(`Batch ${batchNumber} failed, retrying... (${retries} retries left)`, error)
+
+            if (retries > 0) {
+              // Wait before retrying (exponential backoff)
+              const waitTime = (4 - retries) * 1000 // 1s, 2s, 3s
+              await new Promise(resolve => setTimeout(resolve, waitTime))
+            }
+          }
+        }
+
+        if (!batchData && lastError) {
+          console.error(`Failed to fetch user batch ${batchNumber} after all retries:`, lastError)
+          throw new Error(`Failed to fetch user batch ${batchNumber}: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`)
+        }
+
+        if (batchData) {
+          allUsersData = allUsersData.concat(batchData)
+          console.log(`✅ Batch ${batchNumber}/${totalBatches} completed: ${batchData.length} users found`)
+        }
+
+        // Small delay between batches to avoid rate limiting
+        if (i + chunkSize < userIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+      }
+
+      const usersData = allUsersData
+      console.log('All user data fetched:', usersData.length, 'users total')
+      console.log('ステップ2完了: 全ユーザーデータ取得完了')
+
+      const usersError = null // No error if we made it this far
 
       // Create user lookup map
+      console.log('ステップ3: ユーザーマップ作成開始')
       const userMap = new Map()
       usersData?.forEach(user => {
         userMap.set(user.user_id, user)
       })
+      console.log('ステップ3完了: ユーザーマップ作成完了')
 
       // Combine camel_levels with user data
+      console.log('ステップ4: データ結合処理開始')
       const combinedData = camelData.map(camel => ({
         ...camel,
         user: userMap.get(camel.user_id) || {
@@ -544,6 +605,7 @@ function OrganizationChart() {
           mail_address: ''
         }
       }))
+      console.log('ステップ4完了: データ結合処理完了')
 
       console.log('Combined data sample:', combinedData.slice(0, 3))
       console.log('Total combined data length:', combinedData.length)
@@ -588,13 +650,34 @@ function OrganizationChart() {
       console.log('Level distribution after deduplication:', uniqueLevelCounts)
 
       // Build tree structure
+      console.log('ステップ5: ツリー構造構築開始')
       const tree = buildOrganizationTree(uniqueData)
       console.log('Built tree with root nodes:', tree.length)
       console.log('Total members in tree:', tree.reduce((total, node) => total + countTotalMembers(node), 0))
+      console.log('ステップ5完了: ツリー構造構築完了')
+
       setOrgData(tree)
+      console.log('✅ 全処理完了: 組織データの取得と表示準備が完了しました')
     } catch (err) {
-      console.error('Error fetching organization data:', err)
-      setError(`組織データの読み込みに失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      console.error('❌ Error fetching organization data:', err)
+      console.error('エラー詳細:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+        error: err
+      })
+
+      let errorMessage = '組織データの読み込みに失敗しました: '
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          errorMessage += 'ネットワークエラーが発生しました。データ量が多すぎる可能性があります。'
+        } else {
+          errorMessage += err.message
+        }
+      } else {
+        errorMessage += 'Unknown error'
+      }
+
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

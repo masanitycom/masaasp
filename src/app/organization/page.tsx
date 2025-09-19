@@ -50,16 +50,23 @@ export default function OrganizationPage() {
           .single()
 
         if (userCamel) {
-          // Fetch initial 5 direct children
-          const { data: children } = await supabase
+          // Fetch initial 5 direct children (deduplicated by user_id)
+          const { data: childrenData } = await supabase
             .from('camel_levels')
             .select('*')
             .eq('upline', userData.user_id)
-            .limit(5)
+            .order('user_id')
+            .limit(10) // Fetch more to account for potential duplicates
+
+          // Deduplicate by user_id, keeping the first occurrence
+          const uniqueChildren = childrenData ?
+            childrenData.filter((item, index, arr) =>
+              index === arr.findIndex(t => t.user_id === item.user_id)
+            ).slice(0, 5) : []
 
           setRootNode({
             ...userCamel,
-            children: children || []
+            children: uniqueChildren || []
           })
         }
       }
@@ -72,14 +79,21 @@ export default function OrganizationPage() {
 
   const loadChildren = async (userId: string) => {
     try {
-      const { data: children } = await supabase
+      const { data: childrenData } = await supabase
         .from('camel_levels')
         .select('*')
         .eq('upline', userId)
-        .limit(5)
+        .order('user_id')
+        .limit(10) // Fetch more to account for potential duplicates
 
-      if (children && children.length > 0) {
-        updateNodeChildren(rootNode, userId, children)
+      // Deduplicate by user_id, keeping the first occurrence
+      const uniqueChildren = childrenData ?
+        childrenData.filter((item, index, arr) =>
+          index === arr.findIndex(t => t.user_id === item.user_id)
+        ).slice(0, 5) : []
+
+      if (uniqueChildren && uniqueChildren.length > 0) {
+        updateNodeChildren(rootNode, userId, uniqueChildren)
       }
     } catch (error) {
       console.error('Error loading children:', error)

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { CamelLevel } from '@/types/database.types'
-import { ChevronDown, ChevronRight, User } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleUser } from 'lucide-react'
 
 interface TreeNodeProps {
   node: CamelLevel & {
@@ -51,7 +51,7 @@ export default function TreeNode({ node, onExpand, depth }: TreeNodeProps) {
 
         <div className="flex items-center flex-1 min-w-0">
           <div className="p-1 bg-indigo-100 rounded mr-2">
-            <User className="h-4 w-4 text-indigo-600" />
+            <CircleUser className="h-4 w-4 text-indigo-600" />
           </div>
 
           <div className="flex-1 min-w-0">

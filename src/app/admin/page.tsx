@@ -335,6 +335,8 @@ export default function AdminPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [fixingAuth, setFixingAuth] = useState(false)
   const [authFixResult, setAuthFixResult] = useState<string>('')
+  const [manualSetup, setManualSetup] = useState(false)
+  const [manualResult, setManualResult] = useState<string>('')
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -631,6 +633,50 @@ ${result.details ? JSON.stringify(result.details, null, 2) : 'なし'}
     }
   }
 
+  const handleManualSetup = async () => {
+    setManualSetup(true)
+    setManualResult('')
+
+    try {
+      setManualResult('🔧 手動認証セットアップ中...\n・複数のテストユーザーを作成します')
+
+      const response = await fetch('/api/manual-auth-setup', {
+        method: 'POST'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setManualResult(`✅ 手動セットアップ完了！
+
+🔑 利用可能なログイン情報:
+${result.working_credentials.map((cred: any) =>
+  `・メール: ${cred.email}\n  パスワード: ${cred.password}\n  ユーザーID: ${cred.user_id}`
+).join('\n\n')}
+
+🧪 ログインテスト結果:
+${result.login_tests.map((test: any) =>
+  `・${test.email}: ${test.login_test}`
+).join('\n')}
+
+📊 作成結果詳細:
+${result.results.map((res: any) =>
+  `・${res.email}: ${res.status}${res.error ? ` (${res.error})` : ''}`
+).join('\n')}
+
+💡 今すぐログインテストしてください！
+https://masaasp.vercel.app/login`)
+      } else {
+        setManualResult(`❌ 手動セットアップ失敗: ${result.error}`)
+      }
+
+    } catch (error) {
+      setManualResult(`❌ セットアップエラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setManualSetup(false)
+    }
+  }
+
   const handleCreateTestUser = async () => {
     setCreatingTestUser(true)
     setTestUserResult('')
@@ -754,21 +800,41 @@ ${result.login_instructions.map((step: string) => `${step}`).join('\n')}
             <strong>「Invalid login credentials」エラーが発生している場合</strong><br />
             Supabase認証システムにユーザーが存在しません。緊急修復を実行してください。
           </p>
-          <button
-            onClick={handleFixAuth}
-            disabled={fixingAuth}
-            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
-          >
-            {fixingAuth ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-            ) : (
-              <Settings className="h-4 w-4 mr-2" />
-            )}
-            {fixingAuth ? '修復中...' : '🚨 緊急認証修復'}
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={handleFixAuth}
+              disabled={fixingAuth}
+              className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+            >
+              {fixingAuth ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              ) : (
+                <Settings className="h-4 w-4 mr-2" />
+              )}
+              {fixingAuth ? '修復中...' : '🚨 緊急認証修復'}
+            </button>
+
+            <button
+              onClick={handleManualSetup}
+              disabled={manualSetup}
+              className="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
+            >
+              {manualSetup ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              ) : (
+                <Users className="h-4 w-4 mr-2" />
+              )}
+              {manualSetup ? 'セットアップ中...' : '🔧 手動認証セットアップ'}
+            </button>
+          </div>
           {authFixResult && (
             <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${authFixResult.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
               {authFixResult}
+            </div>
+          )}
+          {manualResult && (
+            <div className={`mt-4 p-3 rounded-md text-sm whitespace-pre-wrap font-mono ${manualResult.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`}>
+              {manualResult}
             </div>
           )}
         </div>

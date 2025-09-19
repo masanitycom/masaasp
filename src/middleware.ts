@@ -58,7 +58,8 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check admin access for admin routes only
-    if (request.nextUrl.pathname.startsWith('/admin')) {
+    if (request.nextUrl.pathname.startsWith('/admin-dashboard') ||
+        request.nextUrl.pathname.startsWith('/admin')) {
       if (!userData?.admin_flg) {
         return NextResponse.redirect(new URL('/unauthorized', request.url))
       }

@@ -573,93 +573,105 @@ function OrganizationChart() {
     setExpandedNodes(newExpanded)
   }
 
-  const renderNode = (node: any, level = 0, isLast = false, parentPath = '') => {
+  const renderNode = (node: any, level = 0, isLast = false, isFirst = false) => {
     const hasChildren = node.children && node.children.length > 0
     const isExpanded = expandedNodes.has(node.user_id)
 
-    // Create visual hierarchy indicators
-    const getConnectorLines = () => {
-      if (level === 0) return null
-
-      const lines = []
-      for (let i = 0; i < level; i++) {
-        lines.push(
-          <div key={i} className="w-6 flex justify-center">
-            {i === level - 1 ? (
-              <div className="w-px h-full bg-gray-300 relative">
-                {isLast && <div className="absolute bottom-1/2 w-full bg-white h-1/2" />}
-                <div className="absolute top-1/2 w-4 h-px bg-gray-300" />
-              </div>
-            ) : (
-              <div className="w-px h-full bg-gray-300" />
-            )}
-          </div>
-        )
-      }
-      return lines
-    }
-
     return (
-      <div key={node.user_id}>
-        <div className="flex items-center py-3 hover:bg-gray-50 group">
-          {/* Hierarchy lines */}
-          <div className="flex">
-            {getConnectorLines()}
-          </div>
-
-          {/* Expand/collapse button */}
-          <div className="flex items-center">
-            {hasChildren ? (
-              <button
-                onClick={() => toggleNode(node.user_id)}
-                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded mr-2"
-              >
-                {isExpanded ? '−' : '+'}
-              </button>
-            ) : (
-              <div className="w-6 mr-2" />
+      <div key={node.user_id} className="relative">
+        {/* Draw connecting lines */}
+        {level > 0 && (
+          <div className="absolute left-0 top-0 h-full w-full pointer-events-none">
+            {/* Vertical line from parent */}
+            {!isFirst && (
+              <div
+                className="absolute bg-gray-300"
+                style={{
+                  left: `${(level - 1) * 40 + 20}px`,
+                  top: '-10px',
+                  width: '1px',
+                  height: '25px'
+                }}
+              />
             )}
 
+            {/* Horizontal line to node */}
+            <div
+              className="absolute bg-gray-300"
+              style={{
+                left: `${(level - 1) * 40 + 20}px`,
+                top: '15px',
+                width: '20px',
+                height: '1px'
+              }}
+            />
+
+            {/* Vertical line continuing down */}
+            {!isLast && (
+              <div
+                className="absolute bg-gray-300"
+                style={{
+                  left: `${(level - 1) * 40 + 20}px`,
+                  top: '15px',
+                  width: '1px',
+                  height: '100%'
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Node content */}
+        <div
+          className="flex items-center py-2 px-4 hover:bg-gray-50 group relative z-10"
+          style={{ marginLeft: `${level * 40}px` }}
+        >
+          {/* Expand/collapse button */}
+          {hasChildren && (
+            <button
+              onClick={() => toggleNode(node.user_id)}
+              className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-full mr-2 border border-gray-300 bg-white text-xs font-bold"
+            >
+              {isExpanded ? '−' : '+'}
+            </button>
+          )}
+
+          {/* User card */}
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow min-w-0 flex-1">
             {/* User avatar */}
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold mr-3 shadow-md">
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold mr-3 shadow-md flex-shrink-0">
               {node.user?.kanji_last_name?.charAt(0) || node.user_id.charAt(0)}
             </div>
 
             {/* User info */}
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <p className="text-sm font-semibold text-gray-900">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2 mb-1">
+                <p className="text-sm font-semibold text-gray-900 truncate">
                   {node.user?.kanji_last_name} {node.user?.kanji_first_name}
                 </p>
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                  Level {node.level || node.depth_level}
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full whitespace-nowrap">
+                  Lv.{node.level || node.depth_level || 0}
                 </span>
+              </div>
+
+              <div className="flex items-center space-x-3 text-xs text-gray-500">
+                <span>ID: {node.user_id}</span>
+                {node.upline && (
+                  <span className="text-orange-600">↑ {node.upline}</span>
+                )}
                 {hasChildren && (
-                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                    {node.children.length}人の紹介
+                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                    ↓ {node.children.length}人
                   </span>
                 )}
-              </div>
-              <div className="flex items-center space-x-4 mt-1">
-                <p className="text-xs text-gray-500">
-                  ID: {node.user_id}
-                </p>
-                {node.upline && (
-                  <p className="text-xs text-gray-500">
-                    紹介者: {node.upline}
-                  </p>
-                )}
-                <p className="text-xs text-gray-500">
-                  Position: {node.pos || 'N/A'}
-                </p>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
               <button
-                onClick={() => alert(`${node.user?.kanji_last_name} ${node.user?.kanji_first_name}の詳細情報`)}
-                className="text-gray-400 hover:text-indigo-600 text-sm"
+                onClick={() => alert(`${node.user?.kanji_last_name} ${node.user?.kanji_first_name}\n\nID: ${node.user_id}\nLevel: ${node.level || node.depth_level}\n紹介者: ${node.upline || 'なし'}\n直接紹介数: ${hasChildren ? node.children.length : 0}人`)}
+                className="text-gray-400 hover:text-indigo-600 text-xs px-2 py-1 rounded hover:bg-indigo-50"
               >
                 詳細
               </button>
@@ -667,11 +679,16 @@ function OrganizationChart() {
           </div>
         </div>
 
-        {/* Children */}
+        {/* Children - only render if expanded */}
         {hasChildren && isExpanded && (
-          <div className="ml-0">
+          <div className="relative">
             {node.children.map((child: any, index: number) =>
-              renderNode(child, level + 1, index === node.children.length - 1, parentPath + node.user_id + '/')
+              renderNode(
+                child,
+                level + 1,
+                index === node.children.length - 1, // isLast
+                index === 0 // isFirst
+              )
             )}
           </div>
         )}
@@ -765,9 +782,11 @@ function OrganizationChart() {
         </button>
       </div>
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="max-h-96 overflow-y-auto">
-          {orgData.map(node => renderNode(node))}
+      <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+        <div className="max-h-96 overflow-y-auto p-4">
+          <div className="space-y-2">
+            {orgData.map((node, index) => renderNode(node, 0, index === orgData.length - 1, index === 0))}
+          </div>
         </div>
       </div>
     </div>

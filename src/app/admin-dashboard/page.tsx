@@ -691,7 +691,12 @@ function OrganizationChart() {
     // Create node map (data should already be deduplicated)
     data.forEach((item, index) => {
       if (index < 20) { // Log more items to see Level 1 users
-        console.log(`Item ${index}:`, item)
+        console.log(`Item ${index}:`, {
+          user_id: item.user_id,
+          level: item.level,
+          upline: item.upline,
+          name: item.user?.kanji_last_name + ' ' + item.user?.kanji_first_name
+        })
       }
       nodeMap.set(item.user_id, {
         ...item,
@@ -710,33 +715,66 @@ function OrganizationChart() {
 
     console.log('Node map created with', nodeMap.size, 'entries')
 
-    // Build tree structure
-    data.forEach(item => {
+    // まずレベル0（ルート）のノードを特定
+    const level0Nodes = data.filter(item => !item.upline || item.upline.trim() === '' || item.level === 0)
+    level0Nodes.forEach(item => {
+      const node = nodeMap.get(item.user_id)
+      rootNodes.push(node)
+      console.log('Level 0 (root) node:', item.user_id)
+    })
+
+    // レベル順にソートして親子関係を構築
+    const sortedData = [...data].sort((a, b) => (a.level || 0) - (b.level || 0))
+
+    sortedData.forEach(item => {
       const node = nodeMap.get(item.user_id)
 
       if (item.upline && item.upline.trim() !== '') {
-        // Parse upline field - it may contain multiple user IDs like "c44111031-c00156202"
-        // The direct parent should be the first user_id in the chain (before the hyphen)
-        const uplineChain = item.upline.split('-')
-        const directParentId = uplineChain[0]
+        const uplineStr = item.upline.trim()
 
-        if (nodeMap.has(directParentId)) {
-          const parentNode = nodeMap.get(directParentId)
-          parentNode.children.push(node)
-          parentNode.direct_children_count = parentNode.children.length
-          // Only log first few additions to avoid spam
-          if (parentNode.children.length <= 3) {
-            console.log(`Added ${item.user_id} as child of ${directParentId} (${parentNode.children.length} total children)`)
-          }
-        } else {
-          // Parent not found in current data set, treat as root
-          rootNodes.push(node)
-          console.log('Parent not found, treating as root node:', item.user_id)
+        // uplineフィールドのパターンを分析
+        let potentialParents = []
+
+        // パターン1: 単一のuser_id (例: "c00156202")
+        if (!uplineStr.includes('-')) {
+          potentialParents = [uplineStr]
         }
-      } else {
-        // No upline means this is a root node
-        rootNodes.push(node)
-        console.log('Root node found (no upline):', item.user_id)
+        // パターン2: ハイフン区切り (例: "c44111031-c00156202")
+        else {
+          // ハイフンで分割して、すべての可能性を試す
+          const parts = uplineStr.split('-')
+          // 最後から順に試す（直接の親の可能性が高い順）
+          potentialParents = parts.reverse()
+        }
+
+        // 親を見つける
+        let parentFound = false
+        for (const parentId of potentialParents) {
+          if (nodeMap.has(parentId)) {
+            const parentNode = nodeMap.get(parentId)
+            // 既に追加されていないか確認
+            if (!parentNode.children.some((child: any) => child.user_id === item.user_id)) {
+              parentNode.children.push(node)
+              parentNode.direct_children_count = parentNode.children.length
+
+              if (parentNode.children.length <= 5 || item.level === 2) {
+                console.log(`✓ ${item.user_id} (Lv${item.level}) → parent: ${parentId} (${parentNode.children.length}人目の子)`)
+              }
+            }
+            parentFound = true
+            break
+          }
+        }
+
+        // 親が見つからなかった場合
+        if (!parentFound && !rootNodes.includes(node)) {
+          console.warn(`⚠️ Parent not found for ${item.user_id} (upline: ${uplineStr})`)
+          // レベル1の場合はルートノードとして扱う
+          if (item.level === 1) {
+            rootNodes.push(node)
+            console.log('Treating Level 1 node as root:', item.user_id)
+          }
+        }
       }
     })
 

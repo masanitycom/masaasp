@@ -805,8 +805,13 @@ function CSVUploader({ title, description, tableName, icon }: {
 
       if (data.success) {
         setResult(`✅ アップロード完了
-・処理件数: ${data.processed}件
-・エラー: ${data.errors}件`)
+・処理件数: ${data.details?.totalProcessed || 0}件
+・エラー件数: ${data.details?.totalErrors || 0}件
+・総行数: ${data.details?.totalRows || 0}行
+
+${data.message || ''}
+
+💡 組織図を確認するには画面上部の「全体組織図」をクリックしてください。`)
       } else {
         setResult(`❌ エラー: ${data.error}`)
       }

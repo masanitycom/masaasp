@@ -477,7 +477,7 @@ function OrganizationChart() {
         .order('depth_level', { ascending: true })
         .order('level', { ascending: true })
         .order('user_id', { ascending: true })
-        .limit(5000) // Increased limit for better data representation
+        // Remove limit to fetch all data
 
       console.log('Camel data:', camelData, 'Camel error:', camelError)
 
@@ -564,7 +564,7 @@ function OrganizationChart() {
 
     // Create node map (data should already be deduplicated)
     data.forEach((item, index) => {
-      if (index < 10) { // Only log first 10 items to avoid console spam
+      if (index < 20) { // Log more items to see Level 1 users
         console.log(`Item ${index}:`, item)
       }
       nodeMap.set(item.user_id, {
@@ -594,13 +594,14 @@ function OrganizationChart() {
         const uplineChain = item.upline.split('-')
         const directParentId = uplineChain[0]
 
-        console.log(`User ${item.user_id} upline chain:`, uplineChain, 'direct parent:', directParentId)
-
         if (nodeMap.has(directParentId)) {
           const parentNode = nodeMap.get(directParentId)
           parentNode.children.push(node)
           parentNode.direct_children_count = parentNode.children.length
-          console.log(`Added ${item.user_id} as child of ${directParentId}`)
+          // Only log first few additions to avoid spam
+          if (parentNode.children.length <= 3) {
+            console.log(`Added ${item.user_id} as child of ${directParentId} (${parentNode.children.length} total children)`)
+          }
         } else {
           // Parent not found in current data set, treat as root
           rootNodes.push(node)
@@ -615,22 +616,15 @@ function OrganizationChart() {
 
     console.log('Tree built with', rootNodes.length, 'root nodes')
 
-    // Log tree structure for debugging
+    // Log root node details
     rootNodes.forEach((root, index) => {
       console.log(`Root ${index}: ${root.user_id} with ${root.children.length} direct children`)
-      logTreeStructure(root, 1)
+      console.log(`Root ${index} children preview:`, root.children.slice(0, 5).map(c => `${c.user_id}(Lv${c.level})`))
     })
 
     return rootNodes
   }
 
-  const logTreeStructure = (node: any, level: number) => {
-    const indent = '  '.repeat(level)
-    console.log(`${indent}├─ ${node.user_id} (${node.children.length} children)`)
-    node.children.forEach((child: any) => {
-      logTreeStructure(child, level + 1)
-    })
-  }
 
   const toggleNode = (userId: string) => {
     const newExpanded = new Set(expandedNodes)

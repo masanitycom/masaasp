@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       }
     ]
 
-    const results = []
+    const results: any[] = []
 
     for (const user of testUsers) {
       try {
@@ -97,12 +97,12 @@ export async function POST(request: NextRequest) {
     // Test login for successful users
     const loginTests = []
     for (const result of results) {
-      if (result.status === 'complete' || result.status === 'auth_only') {
+      if ((result.status === 'complete' || result.status === 'auth_only') && 'password' in result) {
         try {
           const testClient = createClient()
           const { data: loginData, error: loginError } = await testClient.auth.signInWithPassword({
             email: result.email,
-            password: result.password
+            password: result.password as string
           })
 
           if (!loginError) {
@@ -132,11 +132,11 @@ export async function POST(request: NextRequest) {
       results: results,
       login_tests: loginTests,
       working_credentials: results
-        .filter(r => r.status === 'complete' || r.status === 'auth_only')
+        .filter(r => (r.status === 'complete' || r.status === 'auth_only') && 'password' in r)
         .map(r => ({
           email: r.email,
-          password: r.password,
-          user_id: r.user_id
+          password: r.password || '',
+          user_id: r.user_id || ''
         }))
     })
 

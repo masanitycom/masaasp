@@ -469,12 +469,13 @@ function OrganizationChart() {
     try {
       console.log('Fetching organization data...')
 
-      // Fetch camel_levels data
+      // Fetch camel_levels data with reasonable limit for performance
       const { data: camelData, error: camelError } = await supabase
         .from('camel_levels')
         .select('user_id, level, pos, upline, depth_level')
         .order('depth_level', { ascending: true })
         .order('pos', { ascending: true })
+        .limit(5000) // Increased limit for better data representation
 
       console.log('Camel data:', camelData, 'Camel error:', camelError)
 
@@ -515,11 +516,13 @@ function OrganizationChart() {
         }
       }))
 
-      console.log('Combined data:', combinedData.slice(0, 3))
+      console.log('Combined data sample:', combinedData.slice(0, 3))
+      console.log('Total combined data length:', combinedData.length)
 
       // Build tree structure
       const tree = buildOrganizationTree(combinedData)
-      console.log('Built tree:', tree)
+      console.log('Built tree with root nodes:', tree.length)
+      console.log('Total members in tree:', tree.reduce((total, node) => total + countTotalMembers(node), 0))
       setOrgData(tree)
     } catch (err) {
       console.error('Error fetching organization data:', err)
@@ -570,49 +573,106 @@ function OrganizationChart() {
     setExpandedNodes(newExpanded)
   }
 
-  const renderNode = (node: any, level = 0) => {
+  const renderNode = (node: any, level = 0, isLast = false, parentPath = '') => {
     const hasChildren = node.children && node.children.length > 0
     const isExpanded = expandedNodes.has(node.user_id)
-    const indentStyle = { paddingLeft: `${level * 20}px` }
+
+    // Create visual hierarchy indicators
+    const getConnectorLines = () => {
+      if (level === 0) return null
+
+      const lines = []
+      for (let i = 0; i < level; i++) {
+        lines.push(
+          <div key={i} className="w-6 flex justify-center">
+            {i === level - 1 ? (
+              <div className="w-px h-full bg-gray-300 relative">
+                {isLast && <div className="absolute bottom-1/2 w-full bg-white h-1/2" />}
+                <div className="absolute top-1/2 w-4 h-px bg-gray-300" />
+              </div>
+            ) : (
+              <div className="w-px h-full bg-gray-300" />
+            )}
+          </div>
+        )
+      }
+      return lines
+    }
 
     return (
-      <div key={node.user_id} className="border-l border-gray-200">
-        <div
-          className="flex items-center py-2 px-4 hover:bg-gray-50 cursor-pointer"
-          style={indentStyle}
-          onClick={() => hasChildren && toggleNode(node.user_id)}
-        >
-          <div className="flex items-center flex-1">
-            {hasChildren && (
-              <div className="mr-2 text-gray-400">
-                {isExpanded ? '▼' : '▶'}
-              </div>
-            )}
-            {!hasChildren && <div className="w-4 mr-2" />}
+      <div key={node.user_id}>
+        <div className="flex items-center py-3 hover:bg-gray-50 group">
+          {/* Hierarchy lines */}
+          <div className="flex">
+            {getConnectorLines()}
+          </div>
 
-            <div className="flex items-center">
-              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-medium text-indigo-600 mr-3">
-                {node.user?.kanji_last_name?.charAt(0) || node.user_id.charAt(0)}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">
+          {/* Expand/collapse button */}
+          <div className="flex items-center">
+            {hasChildren ? (
+              <button
+                onClick={() => toggleNode(node.user_id)}
+                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded mr-2"
+              >
+                {isExpanded ? '−' : '+'}
+              </button>
+            ) : (
+              <div className="w-6 mr-2" />
+            )}
+
+            {/* User avatar */}
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold mr-3 shadow-md">
+              {node.user?.kanji_last_name?.charAt(0) || node.user_id.charAt(0)}
+            </div>
+
+            {/* User info */}
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-semibold text-gray-900">
                   {node.user?.kanji_last_name} {node.user?.kanji_first_name}
                 </p>
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                  Level {node.level || node.depth_level}
+                </span>
+                {hasChildren && (
+                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                    {node.children.length}人の紹介
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center space-x-4 mt-1">
                 <p className="text-xs text-gray-500">
-                  ID: {node.user_id} | Level: {node.depth_level} | Pos: {node.pos}
+                  ID: {node.user_id}
+                </p>
+                {node.upline && (
+                  <p className="text-xs text-gray-500">
+                    紹介者: {node.upline}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Position: {node.pos || 'N/A'}
                 </p>
               </div>
             </div>
-          </div>
 
-          <div className="text-xs text-gray-400">
-            {hasChildren && `${node.children.length}人`}
+            {/* Actions */}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => alert(`${node.user?.kanji_last_name} ${node.user?.kanji_first_name}の詳細情報`)}
+                className="text-gray-400 hover:text-indigo-600 text-sm"
+              >
+                詳細
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* Children */}
         {hasChildren && isExpanded && (
-          <div className="ml-4">
-            {node.children.map((child: any) => renderNode(child, level + 1))}
+          <div className="ml-0">
+            {node.children.map((child: any, index: number) =>
+              renderNode(child, level + 1, index === node.children.length - 1, parentPath + node.user_id + '/')
+            )}
           </div>
         )}
       </div>
@@ -675,17 +735,24 @@ function OrganizationChart() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <p className="text-sm text-gray-600">
-            総メンバー数: {orgData.reduce((total, node) => total + countTotalMembers(node), 0)}人
+            表示中: {orgData.reduce((total, node) => total + countTotalMembers(node), 0)}人 / 全80,000人
           </p>
           <button
-            onClick={() => setExpandedNodes(new Set(getAllUserIds(orgData)))}
-            className="text-sm text-indigo-600 hover:text-indigo-700"
+            onClick={() => {
+              const allIds = getAllUserIds(orgData)
+              console.log('Expanding nodes:', allIds.length)
+              setExpandedNodes(new Set(allIds))
+            }}
+            className="px-3 py-1 text-sm text-indigo-600 hover:text-indigo-700 border border-indigo-300 rounded hover:bg-indigo-50"
           >
-            すべて展開
+            すべて展開 ({getAllUserIds(orgData).length})
           </button>
           <button
-            onClick={() => setExpandedNodes(new Set())}
-            className="text-sm text-indigo-600 hover:text-indigo-700"
+            onClick={() => {
+              console.log('Collapsing all nodes')
+              setExpandedNodes(new Set())
+            }}
+            className="px-3 py-1 text-sm text-indigo-600 hover:text-indigo-700 border border-indigo-300 rounded hover:bg-indigo-50"
           >
             すべて折りたたみ
           </button>
@@ -717,12 +784,17 @@ const countTotalMembers = (node: any): number => {
 
 const getAllUserIds = (nodes: any[]): string[] => {
   let ids: string[] = []
-  nodes.forEach(node => {
-    ids.push(node.user_id)
-    if (node.children) {
-      ids = ids.concat(getAllUserIds(node.children))
-    }
-  })
+
+  const collectIds = (nodeList: any[]) => {
+    nodeList.forEach(node => {
+      if (node.children && node.children.length > 0) {
+        ids.push(node.user_id)
+        collectIds(node.children)
+      }
+    })
+  }
+
+  collectIds(nodes)
   return ids
 }
 

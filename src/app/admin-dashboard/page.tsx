@@ -339,12 +339,11 @@ export default function AdminDashboardPage() {
           </div>
           <div className="p-6">
             <div className="mb-6 bg-blue-50 border-l-4 border-blue-400 p-4">
-              <h3 className="text-sm font-semibold text-blue-800 mb-2">📂 利用可能なCSVファイル</h3>
+              <h3 className="text-sm font-semibold text-blue-800 mb-2">📂 システム運用に必要なCSVファイル</h3>
               <div className="text-sm text-blue-700 space-y-1">
-                <p>• <strong>tb_user作成_暗号化処理済み_1.csv</strong> - ユーザー基本情報</p>
-                <p>• <strong>tb_camel_level_2.csv</strong> - 組織階層データ</p>
-                <p>• <strong>CAMEL入金履歴編集_ID入力済み_1.csv</strong> - 投資履歴</p>
-                <p>• <strong>Matched_Data_2.csv</strong> - マッチングデータ</p>
+                <p>• <strong>tb_user作成_暗号化処理済み_1.csv</strong> - ユーザー基本情報（約20,000件）</p>
+                <p>• <strong>tb_camel_level_2.csv</strong> - 組織階層データ（紹介関係）</p>
+                <p>• <strong>CAMEL入金履歴編集_ID入力済み_1.csv</strong> - 投資履歴データ</p>
               </div>
               <div className="mt-3 space-x-4">
                 <a
@@ -352,29 +351,25 @@ export default function AdminDashboardPage() {
                   className="text-xs text-blue-600 hover:text-blue-800 underline"
                   download
                 >
-                  ユーザーサンプル
+                  📥 ユーザーサンプル
                 </a>
                 <a
                   href="/csv/tb_camel_level (2).csv"
                   className="text-xs text-blue-600 hover:text-blue-800 underline"
                   download
                 >
-                  組織サンプル
+                  📥 組織サンプル
                 </a>
                 <a
                   href="/csv/CAMEL入金履歴編集 - ID入力済み (1).csv"
                   className="text-xs text-blue-600 hover:text-blue-800 underline"
                   download
                 >
-                  投資サンプル
+                  📥 投資サンプル
                 </a>
-                <a
-                  href="/csv/Matched Data (2).csv"
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
-                  download
-                >
-                  マッチングサンプル
-                </a>
+              </div>
+              <div className="mt-3 text-xs text-blue-600">
+                💡 推奨順序: ①ユーザーデータ → ②組織階層データ → ③投資履歴データ
               </div>
             </div>
             <CSVUploadGrid />
@@ -688,7 +683,7 @@ const getAllUserIds = (nodes: any[]): string[] => {
 
 function CSVUploadGrid() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <CSVUploader
         title="ユーザーデータ"
         description="ユーザー基本情報の一括登録"
@@ -706,12 +701,6 @@ function CSVUploadGrid() {
         description="ファンド投資実績の登録"
         tableName="investment_history"
         icon={<Database className="h-6 w-6 text-yellow-600" />}
-      />
-      <CSVUploader
-        title="報酬データ"
-        description="計算済み報酬情報の登録"
-        tableName="calculated_rewards"
-        icon={<AlertCircle className="h-6 w-6 text-purple-600" />}
       />
     </div>
   )

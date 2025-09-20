@@ -456,12 +456,14 @@ export default function AdminDashboardPage() {
 
 function OrganizationChart() {
   const [orgData, setOrgData] = useState<any[]>([])
+  const [fullOrgData, setFullOrgData] = useState<any[]>([]) // 完全なデータを保持
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [highlightedNode, setHighlightedNode] = useState<string | null>(null)
+  const [focusedUserId, setFocusedUserId] = useState<string | null>(null) // フォーカスしているユーザー
   const supabase = createClient()
 
   useEffect(() => {
@@ -660,6 +662,7 @@ function OrganizationChart() {
       console.log('ステップ5完了: ツリー構造構築完了')
 
       setOrgData(tree)
+      setFullOrgData(tree) // 完全なデータを保存
       console.log('✅ 全処理完了: 組織データの取得と表示準備が完了しました')
     } catch (err) {
       console.error('❌ Error fetching organization data:', err)
@@ -1020,6 +1023,40 @@ function OrganizationChart() {
     )
   }
 
+  // 特定のユーザーをルートとして表示
+  const focusOnUser = (userId: string) => {
+    const findNodeInTree = (nodes: any[], targetId: string): any => {
+      for (const node of nodes) {
+        if (node.user_id === targetId) {
+          return node
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findNodeInTree(node.children, targetId)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const targetNode = findNodeInTree(fullOrgData, userId)
+    if (targetNode) {
+      setOrgData([targetNode]) // そのユーザーをルートとして表示
+      setFocusedUserId(userId)
+      setExpandedNodes(new Set()) // 展開状態をリセット
+      setHighlightedNode(null)
+      setSearchResults([])
+      setSearchTerm('')
+    }
+  }
+
+  // 全体表示に戻る
+  const resetToFullView = () => {
+    setOrgData(fullOrgData)
+    setFocusedUserId(null)
+    setExpandedNodes(new Set())
+    setHighlightedNode(null)
+  }
+
   // 検索処理
   const handleSearch = () => {
     if (!searchTerm.trim()) {
@@ -1130,15 +1167,15 @@ function OrganizationChart() {
               {searchResults.slice(0, 10).map((result) => (
                 <div
                   key={result.user_id}
-                  className="flex items-center justify-between p-1 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => {
-                    setHighlightedNode(result.user_id)
-                    expandToNode(result.user_id)
-                  }}
+                  className="flex items-center justify-between p-1 hover:bg-gray-50 cursor-pointer rounded"
+                  onClick={() => focusOnUser(result.user_id)}
                 >
                   <span className="text-xs">
                     {result.user?.kanji_last_name} {result.user?.kanji_first_name}
                     ({result.user_id}) - Lv.{result.level}
+                  </span>
+                  <span className="text-xs text-indigo-600">
+                    組織図を表示 →
                   </span>
                 </div>
               ))}
@@ -1149,8 +1186,25 @@ function OrganizationChart() {
 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
+          {focusedUserId && (
+            <button
+              onClick={resetToFullView}
+              className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+            >
+              ← 全体表示に戻る
+            </button>
+          )}
           <p className="text-sm text-gray-600">
-            表示中: {orgData.reduce((total, node) => total + countTotalMembers(node), 0)}人 / 全80,000人
+            {focusedUserId ? (
+              <>
+                <span className="font-bold text-indigo-600">
+                  {orgData[0]?.user?.kanji_last_name} {orgData[0]?.user?.kanji_first_name}
+                </span>
+                の組織: {orgData.reduce((total, node) => total + countTotalMembers(node), 0)}人
+              </>
+            ) : (
+              <>表示中: {orgData.reduce((total, node) => total + countTotalMembers(node), 0)}人 / 全体</>
+            )}
           </p>
           <button
             onClick={() => {

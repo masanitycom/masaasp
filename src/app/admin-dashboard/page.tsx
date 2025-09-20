@@ -801,10 +801,43 @@ function OrganizationChart() {
         }
       })
 
+      // 子ノードを並び替え: 子がいる人を優先的に上に表示
+      parentNode.children.sort((a: any, b: any) => {
+        // まず子の有無で比較
+        const aHasChildren = a.children && a.children.length > 0
+        const bHasChildren = b.children && b.children.length > 0
+
+        if (aHasChildren && !bHasChildren) return -1
+        if (!aHasChildren && bHasChildren) return 1
+
+        // 両方子がいる場合は子の数で比較（多い順）
+        if (aHasChildren && bHasChildren) {
+          return b.children.length - a.children.length
+        }
+
+        // 両方子がいない場合はレベルで比較
+        return (a.level || 0) - (b.level || 0)
+      })
+
       // ログ出力
       if (parentNode.children.length > 0 && (parentNode.level <= 2 || parentId === 'c25216907')) {
         console.log(`${parentId} (Lv.${parentNode.level}) has ${parentNode.children.length} direct children`)
       }
+    })
+
+    // ルートノードも子がいる人を優先的に上に表示
+    rootNodes.sort((a: any, b: any) => {
+      const aHasChildren = a.children && a.children.length > 0
+      const bHasChildren = b.children && b.children.length > 0
+
+      if (aHasChildren && !bHasChildren) return -1
+      if (!aHasChildren && bHasChildren) return 1
+
+      if (aHasChildren && bHasChildren) {
+        return b.children.length - a.children.length
+      }
+
+      return (a.level || 0) - (b.level || 0)
     })
 
     console.log('Tree built with', rootNodes.length, 'root nodes')
@@ -884,9 +917,21 @@ function OrganizationChart() {
                 [{node.user_id}]
               </span>
               {hasChildren && (
-                <span className="ml-2 text-xs text-green-600 font-medium">
-                  直下{node.children.length}人
-                </span>
+                <>
+                  <span className="ml-2 text-xs text-green-600 font-medium">
+                    直下{node.children.length}人
+                  </span>
+                  {node.children.length >= 10 && (
+                    <span className="ml-1 text-xs text-orange-600">
+                      ⭐
+                    </span>
+                  )}
+                  {node.children.length >= 50 && (
+                    <span className="ml-1 text-xs text-red-600">
+                      🔥
+                    </span>
+                  )}
+                </>
               )}
               <span className="ml-2 text-xs text-blue-600">
                 Lv.{node.level || node.depth_level || 0}

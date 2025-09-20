@@ -1075,13 +1075,15 @@ function OrganizationChart() {
         const furiLastName = node.user?.furi_last_name || ''
         const furiFirstName = node.user?.furi_first_name || ''
         const userId = node.user_id || ''
+        const email = node.user?.mail_address || ''
 
         if (
           lastName.includes(searchTerm) ||
           firstName.includes(searchTerm) ||
           furiLastName.toLowerCase().includes(searchLower) ||
           furiFirstName.toLowerCase().includes(searchLower) ||
-          userId.toLowerCase().includes(searchLower)
+          userId.toLowerCase().includes(searchLower) ||
+          email.toLowerCase().includes(searchLower)
         ) {
           results.push(node)
         }
@@ -1092,7 +1094,8 @@ function OrganizationChart() {
       })
     }
 
-    searchInTree(orgData)
+    // フルデータから検索（フォーカス中でも全体から検索）
+    searchInTree(fullOrgData.length > 0 ? fullOrgData : orgData)
     setSearchResults(results)
 
     if (results.length > 0) {
@@ -1137,7 +1140,7 @@ function OrganizationChart() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="名前、カナ、ユーザーIDで検索..."
+            placeholder="名前、カナ、ユーザーID、メールアドレスで検索..."
             className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
           <button
@@ -1170,11 +1173,23 @@ function OrganizationChart() {
                   className="flex items-center justify-between p-1 hover:bg-gray-50 cursor-pointer rounded"
                   onClick={() => focusOnUser(result.user_id)}
                 >
-                  <span className="text-xs">
-                    {result.user?.kanji_last_name} {result.user?.kanji_first_name}
-                    ({result.user_id}) - Lv.{result.level}
-                  </span>
-                  <span className="text-xs text-indigo-600">
+                  <div className="flex-1">
+                    <span className="text-xs font-medium">
+                      {result.user?.kanji_last_name} {result.user?.kanji_first_name}
+                    </span>
+                    <span className="text-xs text-gray-500 ml-1">
+                      ({result.user_id})
+                    </span>
+                    <span className="text-xs text-blue-600 ml-1">
+                      Lv.{result.level}
+                    </span>
+                    {result.user?.mail_address && (
+                      <span className="text-xs text-gray-400 ml-2">
+                        {result.user.mail_address}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-indigo-600 ml-2">
                     組織図を表示 →
                   </span>
                 </div>

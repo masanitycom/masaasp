@@ -459,6 +459,9 @@ function OrganizationChart() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [highlightedNode, setHighlightedNode] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -542,7 +545,7 @@ function OrganizationChart() {
           try {
             const { data, error } = await supabase
               .from('users')
-              .select('user_id, kanji_last_name, kanji_first_name, mail_address')
+              .select('user_id, kanji_last_name, kanji_first_name, furi_last_name, furi_first_name, mail_address')
               .in('user_id', chunk)
 
             if (error) {
@@ -816,7 +819,9 @@ function OrganizationChart() {
 
     return (
       <div key={node.user_id} className="font-mono">
-        <div className="flex items-center py-1 hover:bg-blue-50 group">
+        <div className={`flex items-center py-1 hover:bg-blue-50 group ${
+          highlightedNode === node.user_id ? 'bg-yellow-100' : ''
+        }`}>
           {/* Tree structure text */}
           <div className="flex items-center">
             <span className="text-gray-400 text-sm mr-2 whitespace-pre">
@@ -844,12 +849,17 @@ function OrganizationChart() {
               <span className="text-sm font-medium text-gray-900">
                 {node.user?.kanji_last_name || 'Unknown'} {node.user?.kanji_first_name || ''}
               </span>
+              {node.user?.furi_last_name && (
+                <span className="ml-1 text-xs text-gray-400">
+                  ({node.user?.furi_last_name} {node.user?.furi_first_name || ''})
+                </span>
+              )}
               <span className="ml-2 text-xs text-gray-500">
-                ({node.user_id})
+                [{node.user_id}]
               </span>
               {hasChildren && (
                 <span className="ml-2 text-xs text-green-600 font-medium">
-                  [{node.children.length}人]
+                  直下{node.children.length}人
                 </span>
               )}
               <span className="ml-2 text-xs text-blue-600">
@@ -939,8 +949,133 @@ function OrganizationChart() {
     )
   }
 
+  // 検索処理
+  const handleSearch = () => {
+    if (!searchTerm.trim()) {
+      setSearchResults([])
+      setHighlightedNode(null)
+      return
+    }
+
+    const results: any[] = []
+    const searchLower = searchTerm.toLowerCase()
+
+    const searchInTree = (nodes: any[]) => {
+      nodes.forEach(node => {
+        const lastName = node.user?.kanji_last_name || ''
+        const firstName = node.user?.kanji_first_name || ''
+        const furiLastName = node.user?.furi_last_name || ''
+        const furiFirstName = node.user?.furi_first_name || ''
+        const userId = node.user_id || ''
+
+        if (
+          lastName.includes(searchTerm) ||
+          firstName.includes(searchTerm) ||
+          furiLastName.toLowerCase().includes(searchLower) ||
+          furiFirstName.toLowerCase().includes(searchLower) ||
+          userId.toLowerCase().includes(searchLower)
+        ) {
+          results.push(node)
+        }
+
+        if (node.children && node.children.length > 0) {
+          searchInTree(node.children)
+        }
+      })
+    }
+
+    searchInTree(orgData)
+    setSearchResults(results)
+
+    if (results.length > 0) {
+      // 最初の結果をハイライト
+      setHighlightedNode(results[0].user_id)
+      // 親ノードを展開
+      expandToNode(results[0].user_id)
+    }
+  }
+
+  // 特定のノードまでのパスを展開
+  const expandToNode = (targetId: string) => {
+    const newExpanded = new Set(expandedNodes)
+
+    const findPath = (nodes: any[], target: string, path: string[] = []): string[] | null => {
+      for (const node of nodes) {
+        if (node.user_id === target) {
+          return path
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findPath(node.children, target, [...path, node.user_id])
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const path = findPath(orgData, targetId)
+    if (path) {
+      path.forEach(id => newExpanded.add(id))
+      setExpandedNodes(newExpanded)
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* 検索バー */}
+      <div className="bg-white border border-gray-200 rounded-lg p-3">
+        <div className="flex items-center space-x-2">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="名前、カナ、ユーザーIDで検索..."
+            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+          <button
+            onClick={handleSearch}
+            className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            検索
+          </button>
+          {searchResults.length > 0 && (
+            <button
+              onClick={() => {
+                setSearchResults([])
+                setSearchTerm('')
+                setHighlightedNode(null)
+              }}
+              className="px-4 py-1.5 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600"
+            >
+              クリア
+            </button>
+          )}
+        </div>
+
+        {searchResults.length > 0 && (
+          <div className="mt-2 text-sm">
+            <p className="text-gray-600">{searchResults.length}件の検索結果</p>
+            <div className="mt-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
+              {searchResults.slice(0, 10).map((result) => (
+                <div
+                  key={result.user_id}
+                  className="flex items-center justify-between p-1 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => {
+                    setHighlightedNode(result.user_id)
+                    expandToNode(result.user_id)
+                  }}
+                >
+                  <span className="text-xs">
+                    {result.user?.kanji_last_name} {result.user?.kanji_first_name}
+                    ({result.user_id}) - Lv.{result.level}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <p className="text-sm text-gray-600">

@@ -3,169 +3,412 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CamelLevel, User } from '@/types/database.types'
-import TreeNode from '@/components/OrganizationChart/TreeNode'
-import { Search, Users, LogOut, Home } from 'lucide-react'
-
-interface TreeNodeData extends CamelLevel {
-  children?: TreeNodeData[]
-}
+import { Search, Users, LogOut, Home, CircleUser } from 'lucide-react'
 
 export default function OrganizationPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [user, setUser] = useState<User | null>(null)
-  const [rootNode, setRootNode] = useState<TreeNodeData | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [orgData, setOrgData] = useState<any[]>([])
+  const [fullOrgData, setFullOrgData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<CamelLevel[]>([])
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [highlightedNode, setHighlightedNode] = useState<string | null>(null)
+  const [focusedUserId, setFocusedUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchInitialData()
+    fetchUserOrganization()
   }, [])
 
-  const fetchInitialData = async () => {
+  const fetchUserOrganization = async () => {
     try {
+      // 認証ユーザーを取得
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) {
         router.push('/login')
         return
       }
 
-      // Fetch user details
+      // ユーザー詳細を取得
       const { data: userData } = await supabase
         .from('users')
         .select('*')
-        .eq('id', authUser.id)
+        .eq('mail_address', authUser.email)
         .single()
 
-      if (userData) {
-        setUser(userData)
+      if (!userData) {
+        console.error('User not found')
+        router.push('/login')
+        return
+      }
 
-        // Fetch user's camel level (handle potential duplicates)
-        const { data: userCamelData } = await supabase
+      setCurrentUser(userData)
+
+      // 自分と配下のcamel_levelsデータを取得
+      console.log('Fetching organization for user:', userData.user_id)
+
+      // まず自分のcamel_levelデータを取得
+      const { data: myLevelData } = await supabase
+        .from('camel_levels')
+        .select('*')
+        .eq('user_id', userData.user_id)
+        .single()
+
+      if (!myLevelData) {
+        console.log('No organization data found')
+        setLoading(false)
+        return
+      }
+
+      // 配下の全データを取得（ページネーション）
+      let allDownlineData: any[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
           .from('camel_levels')
-          .select('*')
-          .eq('user_id', userData.user_id)
+          .select('user_id, level, pos, upline, depth_level')
+          .like('upline', `%${userData.user_id}%`)
+          .order('level', { ascending: true })
+          .order('user_id', { ascending: true })
+          .range(from, from + pageSize - 1)
 
-        // Take the first record if there are duplicates
-        const userCamel = userCamelData && userCamelData.length > 0 ? userCamelData[0] : null
+        if (pageError) {
+          console.error('Error fetching downline:', pageError)
+          throw pageError
+        }
 
-        if (userCamel) {
-          // Fetch initial 5 direct children (deduplicated by user_id)
-          const { data: childrenData } = await supabase
-            .from('camel_levels')
-            .select('*')
-            .eq('upline', userData.user_id)
-            .order('user_id')
-            .limit(10) // Fetch more to account for potential duplicates
-
-          // Deduplicate by user_id, keeping the first occurrence
-          const uniqueChildren = childrenData ?
-            childrenData.filter((item, index, arr) =>
-              index === arr.findIndex(t => t.user_id === item.user_id)
-            ).slice(0, 5) : []
-
-          console.log('Initial children data:', childrenData?.length || 0, 'records')
-          console.log('After deduplication:', uniqueChildren?.length || 0, 'records')
-          if (childrenData && childrenData.length > 0) {
-            console.log('Sample child data:', childrenData[0])
-          }
-
-          setRootNode({
-            ...userCamel,
-            children: uniqueChildren || []
-          })
+        if (pageData && pageData.length > 0) {
+          allDownlineData = allDownlineData.concat(pageData)
+          console.log(`Fetched page: ${pageData.length} records (total: ${allDownlineData.length})`)
+          from += pageSize
+          hasMore = pageData.length === pageSize
+        } else {
+          hasMore = false
         }
       }
+
+      // 自分自身を追加
+      const allData = [myLevelData, ...allDownlineData]
+      console.log('Total organization data:', allData.length)
+
+      // ユニークなユーザーIDを抽出
+      const userIds = [...new Set(allData.map(item => item.user_id))]
+      console.log('Unique user IDs:', userIds.length)
+
+      // ユーザー詳細をバッチで取得
+      let allUsersData: any[] = []
+      const chunkSize = 100
+
+      for (let i = 0; i < userIds.length; i += chunkSize) {
+        const chunk = userIds.slice(i, i + chunkSize)
+
+        const { data: batchData } = await supabase
+          .from('users')
+          .select('user_id, kanji_last_name, kanji_first_name, furi_last_name, furi_first_name, mail_address')
+          .in('user_id', chunk)
+
+        if (batchData) {
+          allUsersData = allUsersData.concat(batchData)
+        }
+      }
+
+      // ユーザーマップを作成
+      const userMap = new Map()
+      allUsersData.forEach(user => {
+        userMap.set(user.user_id, user)
+      })
+
+      // データを結合
+      const combinedData = allData.map(item => ({
+        ...item,
+        user: userMap.get(item.user_id) || {
+          user_id: item.user_id,
+          kanji_last_name: 'Unknown',
+          kanji_first_name: 'User'
+        }
+      }))
+
+      // ツリー構造を構築（自分をルートとして）
+      const tree = buildUserOrganizationTree(combinedData, userData.user_id)
+      setOrgData(tree)
+      setFullOrgData(tree)
+
     } catch (error) {
-      console.error('Error fetching initial data:', error)
+      console.error('Error fetching organization:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadChildren = async (userId: string) => {
-    try {
-      const { data: childrenData } = await supabase
-        .from('camel_levels')
-        .select('*')
-        .eq('upline', userId)
-        .order('user_id')
-        .limit(10) // Fetch more to account for potential duplicates
+  const buildUserOrganizationTree = (data: any[], rootUserId: string) => {
+    const nodeMap = new Map()
 
-      // Deduplicate by user_id, keeping the first occurrence
-      const uniqueChildren = childrenData ?
-        childrenData.filter((item, index, arr) =>
-          index === arr.findIndex(t => t.user_id === item.user_id)
-        ).slice(0, 5) : []
+    // ノードマップを作成
+    data.forEach(item => {
+      nodeMap.set(item.user_id, {
+        ...item,
+        children: [],
+        direct_children_count: 0
+      })
+    })
 
-      console.log(`Loading children for ${userId}:`, childrenData?.length || 0, 'records')
-      console.log('After deduplication:', uniqueChildren?.length || 0, 'records')
+    // 親子関係を構築
+    const parentChildMap = new Map<string, string[]>()
 
-      if (uniqueChildren && uniqueChildren.length > 0) {
-        updateNodeChildren(rootNode, userId, uniqueChildren)
+    data.forEach(item => {
+      if (item.user_id === rootUserId) {
+        // ルートユーザーはスキップ
+        return
       }
-    } catch (error) {
-      console.error('Error loading children:', error)
-    }
-  }
 
-  const updateNodeChildren = (node: TreeNodeData | null, targetUserId: string, children: CamelLevel[]) => {
-    if (!node) return
+      if (item.upline && item.upline.includes(rootUserId)) {
+        // uplineからユーザーの直接の親を特定
+        const uplineParts = item.upline.split('-')
+        const userIndex = uplineParts.indexOf(item.user_id)
 
-    if (node.user_id === targetUserId) {
-      setRootNode({
-        ...node,
-        children: children.map(child => ({
-          ...child,
-          children: undefined
-        }))
-      })
-      return
-    }
+        if (userIndex > 0) {
+          // 直接の親は自分の1つ前
+          const directParentId = uplineParts[userIndex - 1]
 
-    if (node.children) {
-      const updatedChildren = node.children.map(child => {
-        if (child.user_id === targetUserId) {
-          return {
-            ...child,
-            children: children.map(c => ({
-              ...c,
-              children: undefined
-            }))
+          if (!parentChildMap.has(directParentId)) {
+            parentChildMap.set(directParentId, [])
           }
+          parentChildMap.get(directParentId)!.push(item.user_id)
+        } else if (uplineParts[0] === rootUserId) {
+          // ルートの直下
+          if (!parentChildMap.has(rootUserId)) {
+            parentChildMap.set(rootUserId, [])
+          }
+          parentChildMap.get(rootUserId)!.push(item.user_id)
         }
-        if (child.children) {
-          updateNodeChildren(child, targetUserId, children)
+      }
+    })
+
+    // 子ノードを追加
+    parentChildMap.forEach((childIds, parentId) => {
+      const parentNode = nodeMap.get(parentId)
+      if (!parentNode) return
+
+      childIds.forEach(childId => {
+        const childNode = nodeMap.get(childId)
+        if (childNode) {
+          parentNode.children.push(childNode)
+          parentNode.direct_children_count = parentNode.children.length
         }
-        return child
       })
 
-      setRootNode({
-        ...node,
-        children: updatedChildren
+      // 子ノードをソート（子がいる人を優先）
+      parentNode.children.sort((a: any, b: any) => {
+        const aHasChildren = a.children && a.children.length > 0
+        const bHasChildren = b.children && b.children.length > 0
+
+        if (aHasChildren && !bHasChildren) return -1
+        if (!aHasChildren && bHasChildren) return 1
+
+        if (aHasChildren && bHasChildren) {
+          return b.children.length - a.children.length
+        }
+
+        return (a.level || 0) - (b.level || 0)
       })
-    }
+    })
+
+    // ルートノードを返す
+    const rootNode = nodeMap.get(rootUserId)
+    return rootNode ? [rootNode] : []
   }
 
-  const handleSearch = async () => {
+  const toggleNode = (userId: string) => {
+    const newExpanded = new Set(expandedNodes)
+    if (newExpanded.has(userId)) {
+      newExpanded.delete(userId)
+    } else {
+      newExpanded.add(userId)
+    }
+    setExpandedNodes(newExpanded)
+  }
+
+  const renderNode = (node: any, level = 0, isLast = false, prefix = '') => {
+    const hasChildren = node.children && node.children.length > 0
+    const isExpanded = expandedNodes.has(node.user_id)
+    const currentPrefix = level === 0 ? '' : prefix + (isLast ? '└─ ' : '├─ ')
+
+    return (
+      <div key={node.user_id} className="font-mono">
+        <div className={`flex items-center py-1 hover:bg-blue-50 group ${
+          highlightedNode === node.user_id ? 'bg-yellow-100' : ''
+        }`}>
+          <div className="flex items-center">
+            <span className="text-gray-400 text-sm mr-2 whitespace-pre">
+              {currentPrefix}
+            </span>
+
+            {hasChildren && (
+              <button
+                onClick={() => toggleNode(node.user_id)}
+                className="w-4 h-4 flex items-center justify-center text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded text-xs font-bold mr-1"
+              >
+                {isExpanded ? '−' : '+'}
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2 flex-1 font-sans">
+            <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center">
+              <CircleUser className="h-4 w-4 text-indigo-600" />
+            </div>
+
+            <div className="flex-1">
+              <span className="text-sm font-medium text-gray-900">
+                {node.user?.kanji_last_name || 'Unknown'} {node.user?.kanji_first_name || ''}
+              </span>
+              {node.user?.furi_last_name && (
+                <span className="ml-1 text-xs text-gray-400">
+                  ({node.user?.furi_last_name} {node.user?.furi_first_name || ''})
+                </span>
+              )}
+              <span className="ml-2 text-xs text-gray-500">
+                [{node.user_id}]
+              </span>
+              {hasChildren && (
+                <>
+                  <span className="ml-2 text-xs text-green-600 font-medium">
+                    直下{node.children.length}人
+                  </span>
+                  {node.children.length >= 10 && (
+                    <span className="ml-1 text-xs text-orange-600">⭐</span>
+                  )}
+                  {node.children.length >= 50 && (
+                    <span className="ml-1 text-xs text-red-600">🔥</span>
+                  )}
+                </>
+              )}
+              <span className="ml-2 text-xs text-blue-600">
+                Lv.{node.level || node.depth_level || 0}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div>
+            {node.children.map((child: any, index: number) => {
+              const isChildLast = index === node.children.length - 1
+              const childPrefix = level === 0 ? '' : prefix + (isLast ? '   ' : '│  ')
+              return renderNode(child, level + 1, isChildLast, childPrefix)
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // 検索処理
+  const handleSearch = () => {
     if (!searchTerm.trim()) {
       setSearchResults([])
+      setHighlightedNode(null)
       return
     }
 
-    try {
-      const { data } = await supabase
-        .from('camel_levels')
-        .select('*')
-        .or(`user_id.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`)
-        .eq('path', user?.user_id) // Only search in user's downline
-        .limit(10)
+    const results: any[] = []
+    const searchLower = searchTerm.toLowerCase()
 
-      setSearchResults(data || [])
-    } catch (error) {
-      console.error('Error searching:', error)
+    const searchInTree = (nodes: any[]) => {
+      nodes.forEach(node => {
+        const lastName = node.user?.kanji_last_name || ''
+        const firstName = node.user?.kanji_first_name || ''
+        const furiLastName = node.user?.furi_last_name || ''
+        const furiFirstName = node.user?.furi_first_name || ''
+        const userId = node.user_id || ''
+        const email = node.user?.mail_address || ''
+
+        if (
+          lastName.includes(searchTerm) ||
+          firstName.includes(searchTerm) ||
+          furiLastName.toLowerCase().includes(searchLower) ||
+          furiFirstName.toLowerCase().includes(searchLower) ||
+          userId.toLowerCase().includes(searchLower) ||
+          email.toLowerCase().includes(searchLower)
+        ) {
+          results.push(node)
+        }
+
+        if (node.children && node.children.length > 0) {
+          searchInTree(node.children)
+        }
+      })
+    }
+
+    searchInTree(fullOrgData.length > 0 ? fullOrgData : orgData)
+    setSearchResults(results)
+
+    if (results.length > 0) {
+      setHighlightedNode(results[0].user_id)
+      expandToNode(results[0].user_id)
+    }
+  }
+
+  // 特定のユーザーにフォーカス
+  const focusOnUser = (userId: string) => {
+    const findNodeInTree = (nodes: any[], targetId: string): any => {
+      for (const node of nodes) {
+        if (node.user_id === targetId) {
+          return node
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findNodeInTree(node.children, targetId)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const targetNode = findNodeInTree(fullOrgData, userId)
+    if (targetNode) {
+      setOrgData([targetNode])
+      setFocusedUserId(userId)
+      setExpandedNodes(new Set())
+      setHighlightedNode(null)
+      setSearchResults([])
+      setSearchTerm('')
+    }
+  }
+
+  // 全体表示に戻る
+  const resetToFullView = () => {
+    setOrgData(fullOrgData)
+    setFocusedUserId(null)
+    setExpandedNodes(new Set())
+    setHighlightedNode(null)
+  }
+
+  // ノードまでのパスを展開
+  const expandToNode = (targetId: string) => {
+    const newExpanded = new Set(expandedNodes)
+
+    const findPath = (nodes: any[], target: string, path: string[] = []): string[] | null => {
+      for (const node of nodes) {
+        if (node.user_id === target) {
+          return path
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findPath(node.children, target, [...path, node.user_id])
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const path = findPath(orgData, targetId)
+    if (path) {
+      path.forEach(id => newExpanded.add(id))
+      setExpandedNodes(newExpanded)
     }
   }
 
@@ -198,7 +441,7 @@ export default function OrganizationPage() {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">
-                {user?.kanji_last_name} {user?.kanji_first_name} ({user?.user_id})
+                {currentUser?.kanji_last_name} {currentUser?.kanji_first_name} ({currentUser?.user_id})
               </span>
               <button
                 onClick={handleLogout}
@@ -226,9 +469,9 @@ export default function OrganizationPage() {
             <a href="/rewards" className="text-indigo-100 hover:text-white">
               報酬
             </a>
-            {user?.admin_flg && (
-              <a href="/admin" className="text-indigo-100 hover:text-white">
-                管理
+            {currentUser?.admin_flg && (
+              <a href="/admin-dashboard" className="text-indigo-100 hover:text-white">
+                管理者
               </a>
             )}
           </div>
@@ -239,43 +482,64 @@ export default function OrganizationPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Bar */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="ユーザーIDまたは名前で検索..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+          <div className="flex items-center space-x-2">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="名前、カナ、ユーザーID、メールアドレスで検索..."
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
             <button
               onClick={handleSearch}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
             >
               検索
             </button>
+            {searchResults.length > 0 && (
+              <button
+                onClick={() => {
+                  setSearchResults([])
+                  setSearchTerm('')
+                  setHighlightedNode(null)
+                }}
+                className="px-4 py-1.5 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600"
+              >
+                クリア
+              </button>
+            )}
           </div>
 
-          {/* Search Results */}
           {searchResults.length > 0 && (
-            <div className="mt-4 border-t pt-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-2">検索結果</h3>
-              <div className="space-y-2">
-                {searchResults.map((result) => (
+            <div className="mt-2 text-sm">
+              <p className="text-gray-600">{searchResults.length}件の検索結果</p>
+              <div className="mt-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
+                {searchResults.slice(0, 10).map((result) => (
                   <div
-                    key={result.id}
-                    className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
+                    key={result.user_id}
+                    className="flex items-center justify-between p-1 hover:bg-gray-50 cursor-pointer rounded"
+                    onClick={() => focusOnUser(result.user_id)}
                   >
-                    <div>
-                      <span className="font-medium">{result.name}</span>
-                      <span className="text-sm text-gray-500 ml-2">({result.user_id})</span>
+                    <div className="flex-1">
+                      <span className="text-xs font-medium">
+                        {result.user?.kanji_last_name} {result.user?.kanji_first_name}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-1">
+                        ({result.user_id})
+                      </span>
+                      <span className="text-xs text-blue-600 ml-1">
+                        Lv.{result.level}
+                      </span>
+                      {result.user?.mail_address && (
+                        <span className="text-xs text-gray-400 ml-2">
+                          {result.user.mail_address}
+                        </span>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-500">
-                      Level: {result.level} | Pos: {result.pos}
-                    </div>
+                    <span className="text-xs text-indigo-600 ml-2">
+                      組織図を表示 →
+                    </span>
                   </div>
                 ))}
               </div>
@@ -285,24 +549,69 @@ export default function OrganizationPage() {
 
         {/* Organization Tree */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            あなたの組織
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-4">
+              {focusedUserId && (
+                <button
+                  onClick={resetToFullView}
+                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  ← 全体表示に戻る
+                </button>
+              )}
+              <h2 className="text-lg font-semibold text-gray-900">
+                {focusedUserId ? (
+                  <>
+                    <span className="text-indigo-600">
+                      {orgData[0]?.user?.kanji_last_name} {orgData[0]?.user?.kanji_first_name}
+                    </span>
+                    の組織
+                  </>
+                ) : (
+                  'あなたの組織'
+                )}
+              </h2>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  const getAllIds = (nodes: any[]): string[] => {
+                    let ids: string[] = []
+                    nodes.forEach(node => {
+                      if (node.children && node.children.length > 0) {
+                        ids.push(node.user_id)
+                        ids = ids.concat(getAllIds(node.children))
+                      }
+                    })
+                    return ids
+                  }
+                  setExpandedNodes(new Set(getAllIds(orgData)))
+                }}
+                className="px-3 py-1 text-sm text-indigo-600 hover:text-indigo-700 border border-indigo-300 rounded hover:bg-indigo-50"
+              >
+                すべて展開
+              </button>
+              <button
+                onClick={() => setExpandedNodes(new Set())}
+                className="px-3 py-1 text-sm text-indigo-600 hover:text-indigo-700 border border-indigo-300 rounded hover:bg-indigo-50"
+              >
+                すべて折りたたみ
+              </button>
+            </div>
+          </div>
 
-          {rootNode ? (
-            <div className="overflow-x-auto">
-              <TreeNode
-                node={rootNode}
-                onExpand={loadChildren}
-                depth={0}
-              />
+          {orgData.length > 0 ? (
+            <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 p-4 max-h-96 overflow-y-auto">
+              <div className="space-y-2">
+                {orgData.map((node, index) => renderNode(node, 0, index === orgData.length - 1, ''))}
+              </div>
             </div>
           ) : (
             <p className="text-gray-500">組織データが見つかりません</p>
           )}
 
-          <div className="mt-6 text-sm text-gray-500">
-            <p>※ クリックして階層を展開できます（一度に5名ずつ表示）</p>
+          <div className="mt-4 text-sm text-gray-500">
+            <p>※ +ボタンをクリックして階層を展開できます</p>
             <p>※ あなたの配下の組織のみ表示されます</p>
           </div>
         </div>

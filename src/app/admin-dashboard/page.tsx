@@ -708,76 +708,102 @@ function OrganizationChart() {
       })
     })
 
-    // Log some Level 2 examples if they exist
-    const level2Users = data.filter(item => item.level === 2)
-    if (level2Users.length > 0) {
-      console.log('Level 2 users sample:', level2Users.slice(0, 5))
-    } else {
-      console.log('No Level 2 users found in data')
-    }
-
     console.log('Node map created with', nodeMap.size, 'entries')
 
-    // Build tree structure - レベル順に処理
-    const sortedData = [...data].sort((a, b) => (a.level || 0) - (b.level || 0))
+    // 親子関係のマップを作成（より正確な解析）
+    const parentChildMap = new Map<string, string[]>()
 
-    console.log('Building tree from sorted data...')
-
-    sortedData.forEach(item => {
-      const node = nodeMap.get(item.user_id)
-
-      // uplineフィールドの解析
-      // 空またはレベル0 = ルートノード
-      if (!item.upline || item.upline.trim() === '' || item.level === 0) {
-        rootNodes.push(node)
-        console.log(`Root node (Level ${item.level}): ${item.user_id} - ${item.user?.kanji_last_name}`)
+    data.forEach(item => {
+      if (!item.upline || item.upline.trim() === '') {
+        // ルートノード
+        if (!parentChildMap.has('ROOT')) {
+          parentChildMap.set('ROOT', [])
+        }
+        parentChildMap.get('ROOT')!.push(item.user_id)
         return
       }
 
-      // uplineが存在する場合
       const uplineStr = item.upline.trim()
-      let directParentId = null
 
-      // uplineフィールドのフォーマット：
-      // "c44111031-c87639296" = c44111031（親）の下にc87639296（自分）
+      // uplineの最後の要素から直接の親を特定
+      let directParentId: string | null = null
+
       if (uplineStr.includes('-')) {
+        // ハイフン区切りの場合、パスを逆順に解析
         const parts = uplineStr.split('-')
-        // 最初の部分が親のID
-        directParentId = parts[0]
 
-        // 最後の部分が自分のIDであることを確認
-        const myId = parts[parts.length - 1]
-        if (myId !== item.user_id) {
-          console.warn(`ID mismatch: ${item.user_id} != ${myId} in upline ${uplineStr}`)
+        // 最後が自分のIDの場合
+        if (parts[parts.length - 1] === item.user_id && parts.length > 1) {
+          // 最後から2番目が直接の親
+          directParentId = parts[parts.length - 2]
+        } else {
+          // 通常は最初の要素が親（Level 1の場合）
+          directParentId = parts[0]
         }
       } else {
         // ハイフンがない場合は、そのまま親のID
         directParentId = uplineStr
       }
 
-      // 親ノードを探して子として追加
-      if (directParentId && nodeMap.has(directParentId)) {
-        const parentNode = nodeMap.get(directParentId)
+      if (directParentId) {
+        if (!parentChildMap.has(directParentId)) {
+          parentChildMap.set(directParentId, [])
+        }
+        parentChildMap.get(directParentId)!.push(item.user_id)
 
-        // 重複チェック
-        if (!parentNode.children.some((child: any) => child.user_id === item.user_id)) {
-          parentNode.children.push(node)
-          parentNode.direct_children_count = parentNode.children.length
+        // デバッグログ
+        if (item.level === 3 && item.user_id === 'c25216907') {
+          console.log(`秋元哲也(c25216907)の親: ${directParentId}, upline: ${uplineStr}`)
+        }
+      }
+    })
 
-          // ログ出力（最初の数件のみ）
-          if (parentNode.children.length <= 3 || item.level <= 2) {
-            console.log(`✓ ${item.user_id} → 親: ${directParentId} (Level ${item.level}, ${parentNode.children.length}人目の子)`)
+    console.log('Parent-child map created with', parentChildMap.size, 'parent nodes')
+
+    // 親子関係マップをログ出力（サンプル）
+    let sampleCount = 0
+    parentChildMap.forEach((children, parent) => {
+      if (sampleCount < 10 && children.length > 0) {
+        console.log(`Parent ${parent} has ${children.length} children: ${children.slice(0, 5).join(', ')}`)
+        sampleCount++
+      }
+    })
+
+    // ツリーを構築
+    // ルートノードから開始
+    const rootIds = parentChildMap.get('ROOT') || []
+    rootIds.forEach(rootId => {
+      const node = nodeMap.get(rootId)
+      if (node) {
+        rootNodes.push(node)
+        console.log(`Root node: ${rootId}`)
+      }
+    })
+
+    // すべてのノードに子を追加
+    parentChildMap.forEach((childIds, parentId) => {
+      if (parentId === 'ROOT') return
+
+      const parentNode = nodeMap.get(parentId)
+      if (!parentNode) {
+        console.warn(`Parent node not found: ${parentId}`)
+        return
+      }
+
+      childIds.forEach(childId => {
+        const childNode = nodeMap.get(childId)
+        if (childNode) {
+          // 重複チェック
+          if (!parentNode.children.some((child: any) => child.user_id === childId)) {
+            parentNode.children.push(childNode)
+            parentNode.direct_children_count = parentNode.children.length
           }
         }
-      } else if (directParentId) {
-        // 親が見つからない場合
-        console.warn(`⚠️ Parent not found: ${directParentId} for ${item.user_id} (Level ${item.level})`)
+      })
 
-        // レベル1で親が見つからない場合はルートとして扱う
-        if (item.level === 1) {
-          rootNodes.push(node)
-          console.log(`Level 1 orphan as root: ${item.user_id}`)
-        }
+      // ログ出力
+      if (parentNode.children.length > 0 && (parentNode.level <= 2 || parentId === 'c25216907')) {
+        console.log(`${parentId} (Lv.${parentNode.level}) has ${parentNode.children.length} direct children`)
       }
     })
 

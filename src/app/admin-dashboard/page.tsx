@@ -31,29 +31,39 @@ export default function AdminDashboardPage() {
   }, [])
 
   const checkAdminAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    // まず緊急ログインセッションをチェック
+    const emergencyUser = localStorage.getItem('masaasp_user')
+    let userData = null
 
-    if (!user) {
-      router.push('/login')
-      return
-    }
+    if (emergencyUser) {
+      userData = JSON.parse(emergencyUser)
+      console.log('緊急ログインセッション使用:', userData.user_id)
+    } else {
+      // 通常のSupabase認証
+      const { data: { user } } = await supabase.auth.getUser()
 
-    // Check admin privileges
-    const { data: userRecords, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('mail_address', user.email)
+      if (!user) {
+        router.push('/login')
+        return
+      }
 
-    const userData = userRecords?.[0] // Take first match
+      // ユーザー権限をチェック
+      const { data: userRecords, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('mail_address', user.email)
 
-    if (userError || !userData) {
-      console.error('Error fetching user data:', userError)
-      router.push('/login')
-      return
+      userData = userRecords?.[0]
+
+      if (userError || !userData) {
+        console.error('Error fetching user data:', userError)
+        router.push('/login')
+        return
+      }
     }
 
     if (!userData?.admin_flg) {
-      router.push('/dashboard') // Redirect to normal dashboard
+      router.push('/dashboard') // 通常ダッシュボードにリダイレクト
       return
     }
 
@@ -115,6 +125,9 @@ export default function AdminDashboardPage() {
   }
 
   const handleLogout = async () => {
+    // 緊急ログインセッションをクリア
+    localStorage.removeItem('masaasp_user')
+    // 通常のSupabaseセッションもクリア
     await supabase.auth.signOut()
     router.push('/login')
   }

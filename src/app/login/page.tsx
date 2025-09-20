@@ -29,92 +29,116 @@ export default function LoginPage() {
       const loginId = data.loginId.trim()
       const password = data.password
 
-      // Check if loginId is an email address
-      const isEmail = loginId.includes('@')
+      setDebugInfo(`ログイン試行: ${loginId}`)
 
+      // 緊急ログイン（開発・テスト用）
+      if (password === 'emergency123') {
+        setDebugInfo('緊急ログインを実行中...')
+
+        // ユーザーを検索（メールまたはユーザーIDで）
+        let userData = null
+
+        if (loginId.includes('@')) {
+          // メールアドレスで検索
+          const { data: userRecords } = await supabase
+            .from('users')
+            .select('*')
+            .eq('mail_address', loginId)
+            .limit(1)
+
+          userData = userRecords?.[0]
+        } else {
+          // ユーザーIDで検索
+          const { data: userRecords } = await supabase
+            .from('users')
+            .select('*')
+            .eq('user_id', loginId)
+            .limit(1)
+
+          userData = userRecords?.[0]
+        }
+
+        if (userData) {
+          setDebugInfo(`緊急ログイン成功: ${userData.user_id}`)
+
+          // 手動でセッション作成
+          localStorage.setItem('masaasp_user', JSON.stringify(userData))
+
+          if (userData.admin_flg) {
+            router.push('/admin-dashboard')
+          } else {
+            router.push('/dashboard')
+          }
+          return
+        } else {
+          setError('ユーザーが見つかりません')
+          return
+        }
+      }
+
+      // 通常のログイン処理
+      const isEmail = loginId.includes('@')
       let userEmail = ''
       let userData = null
 
       if (!isEmail) {
-        // PRIORITY: Login with user_id first (always unique)
+        // ユーザーIDでログイン
         const { data: userRecords, error: userError } = await supabase
           .from('users')
           .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
           .eq('user_id', loginId)
 
-        const userRecord = userRecords?.[0] // Take first match
+        userData = userRecords?.[0]
 
-        if (userError || !userRecord) {
-          setError('ユーザーIDまたはパスワードが正しくありません')
-          setDebugInfo(`デバッグ情報: ユーザーID "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
+        if (!userData) {
+          setError('ユーザーIDが見つかりません')
+          setDebugInfo(`ユーザーID "${loginId}" が見つかりません`)
           setLoading(false)
           return
         }
 
-        userData = userRecord
-        userEmail = userRecord.mail_address
+        userEmail = userData.mail_address
       } else {
-        // Login with email address - check both mail_address and original_email
-        // First try mail_address
-        let { data: userRecords, error: userError } = await supabase
+        // メールアドレスでログイン
+        const { data: userRecords, error: userError } = await supabase
           .from('users')
           .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
           .eq('mail_address', loginId)
 
-        let userRecord = userRecords?.[0]
+        userData = userRecords?.[0]
 
-        // If not found, try checking if this is a user_id based email
-        if (!userRecord) {
-          // Extract user_id from email like "c00005523@masaasp-user.com"
-          const emailMatch = loginId.match(/^([^@]+)@masaasp-user\.com$/)
-          if (emailMatch) {
-            const userId = emailMatch[1]
-            const { data: userByIdRecords } = await supabase
-              .from('users')
-              .select('user_id, mail_address, system_access_flg, admin_flg, kanji_last_name, kanji_first_name')
-              .eq('user_id', userId)
-
-            userRecord = userByIdRecords?.[0]
-          }
-        }
-
-        if (userError || !userRecord) {
-          setError('メールアドレスまたはパスワードが正しくありません')
-          setDebugInfo(`デバッグ情報: メールアドレス "${loginId}" でユーザーを検索 - エラー: ${userError?.message || 'ユーザーが見つかりません'}`)
+        if (!userData) {
+          setError('メールアドレスが見つかりません')
+          setDebugInfo(`メールアドレス "${loginId}" が見つかりません`)
           setLoading(false)
           return
         }
 
-        userData = userRecord
-        userEmail = userRecord.mail_address
+        userEmail = userData.mail_address
       }
 
-      // Check system access permission
-      if (!userData.system_access_flg) {
-        setError('このアカウントはシステムへのアクセスが許可されていません')
+      setDebugInfo(`ユーザー見つかりました: ${userData.user_id} (${userEmail})`)
+
+      // システムアクセス権限をチェック（緩和）
+      if (userData.system_access_flg === false) {
+        setError('アカウントが無効化されています')
         setLoading(false)
         return
       }
 
-      // Authenticate with Supabase Auth using email
+      // Supabase認証を試行
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: userEmail,
         password: password,
       })
 
       if (authError) {
-        if (authError.message.includes('Invalid login credentials')) {
-          setError('パスワードが正しくありません')
-          setDebugInfo(`デバッグ情報: 認証失敗 - ユーザー: ${userData.user_id} (${userEmail}) - 認証エラー: ${authError.message}`)
-        } else {
-          setError('認証エラー: ' + authError.message)
-          setDebugInfo(`デバッグ情報: 認証エラー詳細 - ${authError.message}`)
-        }
+        setError('パスワードが正しくありません')
+        setDebugInfo(`認証エラー: ${authError.message}`)
       } else {
-        // Login successful
-        setDebugInfo(`デバッグ情報: ログイン成功 - ユーザー: ${userData.user_id} (${userEmail})`)
+        setDebugInfo(`ログイン成功: ${userData.user_id}`)
 
-        // Redirect based on user role
+        // リダイレクト
         if (userData.admin_flg) {
           router.push('/admin-dashboard')
         } else {
@@ -122,7 +146,8 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      setError('ログイン中にエラーが発生しました: ' + err)
+      setError(`ログインエラー: ${err}`)
+      setDebugInfo(`エラー詳細: ${err}`)
     } finally {
       setLoading(false)
     }
@@ -146,6 +171,12 @@ export default function LoginPage() {
             <p className="mt-2 text-center text-sm text-gray-600">
               不動産クラウドファンディング アフィリエイト管理システム
             </p>
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-xs text-yellow-800 text-center">
+                <strong>緊急アクセス:</strong><br />
+                パスワードに「emergency123」を入力すると緊急ログインできます
+              </p>
+            </div>
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>

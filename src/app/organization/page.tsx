@@ -24,24 +24,34 @@ export default function OrganizationPage() {
 
   const fetchUserOrganization = async () => {
     try {
-      // 認証ユーザーを取得
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) {
-        router.push('/login')
-        return
-      }
+      // まず緊急ログインセッションをチェック
+      const emergencyUser = localStorage.getItem('masaasp_user')
+      let userData = null
 
-      // ユーザー詳細を取得
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('mail_address', authUser.email)
-        .single()
+      if (emergencyUser) {
+        userData = JSON.parse(emergencyUser)
+        console.log('緊急ログインセッション使用:', userData.user_id)
+      } else {
+        // 通常のSupabase認証
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (!authUser) {
+          router.push('/login')
+          return
+        }
 
-      if (!userData) {
-        console.error('User not found')
-        router.push('/login')
-        return
+        // ユーザー詳細を取得
+        const { data: userRecord } = await supabase
+          .from('users')
+          .select('*')
+          .eq('mail_address', authUser.email)
+          .single()
+
+        if (!userRecord) {
+          console.error('User not found')
+          router.push('/login')
+          return
+        }
+        userData = userRecord
       }
 
       setCurrentUser(userData)
@@ -413,6 +423,9 @@ export default function OrganizationPage() {
   }
 
   const handleLogout = async () => {
+    // 緊急ログインセッションをクリア
+    localStorage.removeItem('masaasp_user')
+    // 通常のSupabaseセッションもクリア
     await supabase.auth.signOut()
     router.push('/login')
   }

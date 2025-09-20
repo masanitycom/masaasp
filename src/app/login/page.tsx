@@ -31,51 +31,6 @@ export default function LoginPage() {
 
       setDebugInfo(`ログイン試行: ${loginId}`)
 
-      // 緊急ログイン（開発・テスト用）
-      if (password === 'emergency123') {
-        setDebugInfo('緊急ログインを実行中...')
-
-        // ユーザーを検索（メールまたはユーザーIDで）
-        let userData = null
-
-        if (loginId.includes('@')) {
-          // メールアドレスで検索
-          const { data: userRecords } = await supabase
-            .from('users')
-            .select('*')
-            .eq('mail_address', loginId)
-            .limit(1)
-
-          userData = userRecords?.[0]
-        } else {
-          // ユーザーIDで検索
-          const { data: userRecords } = await supabase
-            .from('users')
-            .select('*')
-            .eq('user_id', loginId)
-            .limit(1)
-
-          userData = userRecords?.[0]
-        }
-
-        if (userData) {
-          setDebugInfo(`緊急ログイン成功: ${userData.user_id}`)
-
-          // 手動でセッション作成
-          localStorage.setItem('masaasp_user', JSON.stringify(userData))
-
-          if (userData.admin_flg) {
-            router.push('/admin-dashboard')
-          } else {
-            router.push('/dashboard')
-          }
-          return
-        } else {
-          setError('ユーザーが見つかりません')
-          return
-        }
-      }
-
       // 通常のログイン処理
       const isEmail = loginId.includes('@')
       let userEmail = ''
@@ -171,10 +126,12 @@ export default function LoginPage() {
             <p className="mt-2 text-center text-sm text-gray-600">
               不動産クラウドファンディング アフィリエイト管理システム
             </p>
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-xs text-yellow-800 text-center">
-                <strong>緊急アクセス:</strong><br />
-                パスワードに「emergency123」を入力すると緊急ログインできます
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-xs text-blue-800">
+                <strong>ログインできない場合:</strong><br />
+                1. /auth-setup ページにアクセス<br />
+                2. テストアカウントを作成<br />
+                3. 作成されたアカウントでログイン
               </p>
             </div>
           </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, Users, LogIn, AlertTriangle, Zap } from 'lucide-react'
+import { Settings, Users, LogIn, AlertTriangle } from 'lucide-react'
 
 export default function AuthSetupPage() {
   const [setupResult, setSetupResult] = useState<string>('')
@@ -9,8 +9,6 @@ export default function AuthSetupPage() {
   const [userId, setUserId] = useState<string>('')
   const [newPassword, setNewPassword] = useState<string>('')
   const [resetLoading, setResetLoading] = useState(false)
-  const [bulkPassword, setBulkPassword] = useState<string>('masaasp2024')
-  const [bulkLoading, setBulkLoading] = useState(false)
 
   const handleAuthSetup = async () => {
     setLoading(true)
@@ -91,60 +89,6 @@ ${result.working_credentials.map((cred: any) =>
     }
   }
 
-  const handleBulkPasswordReset = async () => {
-    if (!bulkPassword) {
-      setSetupResult('❌ 一括設定用パスワードを入力してください')
-      return
-    }
-
-    setBulkLoading(true)
-    setSetupResult('🔧 全ユーザーの一括パスワードリセットを開始中...\n⚠️ この処理には数分かかる場合があります')
-
-    try {
-      const response = await fetch('/api/bulk-reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          defaultPassword: bulkPassword
-        })
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        setSetupResult(`✅ 一括パスワードリセット完了！
-
-📊 処理結果:
-━━━━━━━━━━━━━━━━━━━
-👥 対象ユーザー数: ${result.results.total}人
-✅ 成功: ${result.results.success}人
-❌ 失敗: ${result.results.failed}人
-━━━━━━━━━━━━━━━━━━━
-
-🔑 設定されたパスワード: ${result.defaultPassword}
-
-📧 全ユーザーがこのパスワードでログイン可能です:
-- メールアドレス + ${result.defaultPassword}
-- ユーザーID + ${result.defaultPassword}
-
-${result.results.errors.length > 0 ? `
-⚠️ エラー詳細:
-${result.results.errors.slice(0, 10).join('\n')}
-${result.results.errors.length > 10 ? `...他${result.results.errors.length - 10}件` : ''}
-` : ''}
-
-✨ 全ユーザーがログインページでログイン可能です`)
-      } else {
-        setSetupResult(`❌ 一括リセット失敗: ${result.error}`)
-      }
-    } catch (error) {
-      setSetupResult(`❌ エラー: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setBulkLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center p-4">
@@ -163,42 +107,9 @@ ${result.results.errors.length > 10 ? `...他${result.results.errors.length - 10
             </h2>
             <p className="text-gray-600">
               このページは認証なしでアクセス可能です。<br />
-              全ユーザー一括リセット、個別リセット、または新規アカウント作成ができます。
+              個別パスワードリセットまたは新規アカウント作成ができます。<br />
+              <strong>ログインできない場合は、ログインページのパスワードリセット機能をご利用ください。</strong>
             </p>
-          </div>
-
-          {/* Bulk Password Reset Section */}
-          <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
-            <h3 className="text-lg font-bold text-red-900 mb-3">🚨 全ユーザー一括パスワードリセット</h3>
-            <p className="text-sm text-red-700 mb-4">
-              ⚠️ この機能は全ユーザー（約2万人）のパスワードを一括で設定します
-            </p>
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={bulkPassword}
-                onChange={(e) => setBulkPassword(e.target.value)}
-                placeholder="全ユーザーに設定するパスワード"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-              />
-              <button
-                onClick={handleBulkPasswordReset}
-                disabled={bulkLoading}
-                className="w-full bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center font-semibold transition-colors"
-              >
-                {bulkLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-                    全ユーザー処理中...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-5 w-5 mr-2" />
-                    全ユーザーのパスワードを一括リセット
-                  </>
-                )}
-              </button>
-            </div>
           </div>
 
           {/* Password Reset Section */}

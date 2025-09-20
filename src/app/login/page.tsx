@@ -17,6 +17,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string>('')
+  const [resetEmailSent, setResetEmailSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>()
 
@@ -108,6 +110,34 @@ export default function LoginPage() {
     }
   }
 
+  const handlePasswordReset = async (email: string) => {
+    setResetLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/password-reset-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setResetEmailSent(true)
+        setDebugInfo(`パスワードリセットメールを ${email} に送信しました`)
+      } else {
+        setError(result.error)
+      }
+    } catch (err) {
+      setError('パスワードリセットメールの送信に失敗しました')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -129,9 +159,9 @@ export default function LoginPage() {
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-xs text-blue-800">
                 <strong>ログインできない場合:</strong><br />
-                1. /auth-setup ページにアクセス<br />
-                2. テストアカウントを作成<br />
-                3. 作成されたアカウントでログイン
+                1. 下の「パスワードリセット」ボタンをクリック<br />
+                2. メールアドレスを入力してリセットメールを受信<br />
+                3. メール内のリンクから新しいパスワードを設定
               </p>
             </div>
           </div>
@@ -203,6 +233,44 @@ export default function LoginPage() {
                   </>
                 )}
               </button>
+            </div>
+
+            {/* Password Reset Section */}
+            <div className="mt-6 border-t border-gray-200 pt-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-3">
+                  パスワードを忘れた場合
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const loginValue = (document.querySelector('input[name="loginId"]') as HTMLInputElement)?.value
+                    if (loginValue) {
+                      const email = loginValue.includes('@') ? loginValue : ''
+                      if (email) {
+                        handlePasswordReset(email)
+                      } else {
+                        setError('メールアドレスを入力してパスワードリセットを行ってください')
+                      }
+                    } else {
+                      setError('メールアドレスを入力してください')
+                    }
+                  }}
+                  disabled={resetLoading}
+                  className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resetLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" />
+                  ) : (
+                    'パスワードリセットメールを送信'
+                  )}
+                </button>
+                {resetEmailSent && (
+                  <p className="mt-2 text-xs text-green-600">
+                    リセットメールを送信しました。メールボックスをご確認ください。
+                  </p>
+                )}
+              </div>
             </div>
           </form>
         </div>

@@ -89,6 +89,7 @@ async function processUsersData(supabase: any, data: any[], result: { insertedCo
       })).filter(row => row.user_id && row.mail_address) // Only include rows with required fields
 
       if (transformedData.length > 0) {
+        // First, insert/update users table
         const { data: insertResult, error } = await supabase
           .from('users')
           .upsert(transformedData, { onConflict: 'user_id' })
@@ -97,11 +98,46 @@ async function processUsersData(supabase: any, data: any[], result: { insertedCo
           result.errors.push(`Batch ${Math.floor(i/batchSize) + 1}: ${error.message}`)
         } else {
           result.insertedCount += transformedData.length
+
+          // Create Supabase Auth accounts for new users
+          await createAuthAccountsForUsers(supabase, transformedData, result, Math.floor(i/batchSize) + 1)
         }
       }
     } catch (batchError) {
       result.errors.push(`Batch ${Math.floor(i/batchSize) + 1}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
     }
+  }
+}
+
+async function createAuthAccountsForUsers(supabase: any, userData: any[], result: { insertedCount: number, errors: string[] }, batchNumber: number) {
+  for (const user of userData) {
+    try {
+      // Check if auth account already exists
+      const { data: authList } = await supabase.auth.admin.listUsers()
+      const existingAuthUser = authList.users.find((u: any) => u.email === user.mail_address)
+
+      if (!existingAuthUser && user.password) {
+        // Create new auth account with user's password
+        const { error: createError } = await supabase.auth.admin.createUser({
+          email: user.mail_address,
+          password: user.password,
+          email_confirm: true,
+          user_metadata: {
+            user_id: user.user_id,
+            full_name: `${user.kanji_last_name} ${user.kanji_first_name}`
+          }
+        })
+
+        if (createError) {
+          result.errors.push(`Batch ${batchNumber} - Auth creation failed for ${user.user_id}: ${createError.message}`)
+        }
+      }
+    } catch (authError) {
+      result.errors.push(`Batch ${batchNumber} - Auth error for ${user.user_id}: ${authError instanceof Error ? authError.message : 'Unknown error'}`)
+    }
+
+    // Small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100))
   }
 }
 
